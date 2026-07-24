@@ -37,7 +37,9 @@ import com.goldsonhwy.yellowplayer.ui.theme.*
 fun SourceSelectScreen(navController: NavController) {
     val context = LocalContext.current
     val prefs = remember { context.getSharedPreferences("local_video_folders", Context.MODE_PRIVATE) }
+    val favoritePrefs = remember { context.getSharedPreferences("favorite_move", Context.MODE_PRIVATE) }
     var savedFolders by remember { mutableStateOf(prefs.getStringSet("paths", emptySet()).orEmpty().toList().sorted()) }
+    var favoriteDir by remember { mutableStateOf(favoritePrefs.getString("dir", "").orEmpty()) }
     var showPermissionDialog by remember { mutableStateOf(false) }
     var permissionDialogMessage by remember { mutableStateOf("") }
     var pendingSource by remember { mutableStateOf<VideoSource?>(null) }
@@ -78,6 +80,18 @@ fun SourceSelectScreen(navController: NavController) {
             } else {
                 permissionDialogMessage = "当前只支持手机主存储目录。请选择内部存储中的视频文件夹。"
                 showPermissionDialog = true
+            }
+        }
+    }
+
+    val favoriteDirPickerLauncher = rememberLauncherForActivityResult(
+        contract = ActivityResultContracts.OpenDocumentTree()
+    ) { uri ->
+        if (uri != null) {
+            val path = treeUriToPrimaryPath(uri)
+            if (path != null) {
+                favoritePrefs.edit().putString("dir", path).apply()
+                favoriteDir = path
             }
         }
     }
@@ -163,6 +177,14 @@ fun SourceSelectScreen(navController: NavController) {
             )
 
             SourceCard(
+                title = "选择收藏目录",
+                subtitle = favoriteDir.ifEmpty { "未设置：请先选择收藏视频移动到哪个目录" },
+                icon = Icons.Default.FolderSpecial,
+                tint = LikeRed,
+                onClick = { favoriteDirPickerLauncher.launch(null) }
+            )
+
+            SourceCard(
                 title = "外置存储",
                 subtitle = "USB / OTG / SD 卡（需手动选择目录）",
                 icon = Icons.Default.SdCard,
@@ -177,11 +199,14 @@ fun SourceSelectScreen(navController: NavController) {
             )
 
             SourceCard(
-                title = "收藏",
-                subtitle = "你点赞过的视频",
+                title = "收藏目录",
+                subtitle = if (favoriteDir.isEmpty()) "请先选择收藏目录" else "查看收藏目录下的视频",
                 icon = Icons.Default.FavoriteBorder,
                 tint = LikeRed,
-                onClick = { navController.navigate(Routes.directory(VideoSource.LOCAL, "__favorites__")) }
+                onClick = {
+                    if (favoriteDir.isNotEmpty()) navController.navigate(Routes.directory(VideoSource.LOCAL, favoriteDir))
+                    else favoriteDirPickerLauncher.launch(null)
+                }
             )
 
             Spacer(Modifier.weight(1f))
@@ -191,7 +216,7 @@ fun SourceSelectScreen(navController: NavController) {
                 fontSize = 12.sp,
                 modifier = Modifier.fillMaxWidth().padding(horizontal = 4.dp)
             )
-            Text("v0.0.15", color = TextHint, fontSize = 12.sp, modifier = Modifier.align(Alignment.CenterHorizontally))
+            Text("v0.0.16", color = TextHint, fontSize = 12.sp, modifier = Modifier.align(Alignment.CenterHorizontally))
         }
     }
 

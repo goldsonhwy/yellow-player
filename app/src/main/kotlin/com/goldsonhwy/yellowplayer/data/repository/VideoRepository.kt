@@ -216,7 +216,38 @@ class VideoRepository(private val context: Context) {
         val rel = if (base.isNotBlank()) fav.originalPath.removePrefix(base).trimStart('/') else current.name
         val target = File(favoriteRoot, rel)
         target.parentFile?.mkdirs()
-        if (!current.renameTo(target)) return@withContext null
+        if (!current.renameTo(target)) {
+            // Cross-volume or scoped-storage rename may fail. Fall back to copy + delete,
+            // and expose coarse progress for the Favorites page.
+            val prefs = context.getSharedPreferences("favorite_move_progress", Context.MODE_PRIVATE)
+            val key = fav.originalPath
+            val total = current.length().coerceAtLeast(1L)
+            var copied = 0L
+            prefs.edit().putString(key, "0/${total}").apply()
+            try {
+                current.inputStream().use { input ->
+                    target.outputStream().use { output ->
+                        val buffer = ByteArray(1024 * 1024)
+                        while (true) {
+                            val read = input.read(buffer)
+                            if (read <= 0) break
+                            output.write(buffer, 0, read)
+                            copied += read
+                            prefs.edit().putString(key, "${copied}/${total}").apply()
+                        }
+                    }
+                }
+                if (target.exists() && target.length() == current.length()) {
+                    current.delete()
+                    prefs.edit().remove(key).apply()
+                } else {
+                    return@withContext null
+                }
+            } catch (_: Exception) {
+                prefs.edit().remove(key).apply()
+                return@withContext null
+            }
+        }
 
         val updated = fav.copy(
             currentPath = target.absolutePath,

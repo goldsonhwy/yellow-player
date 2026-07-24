@@ -49,6 +49,9 @@ fun DirectoryScreen(
     val context = LocalContext.current
     val uiState by viewModel.uiState.collectAsState()
     val gridState = rememberLazyGridState()
+    var showSortDialog by remember { mutableStateOf(false) }
+    var sortMode by remember { mutableStateOf("name") }
+    var moveProgressText by remember { mutableStateOf("") }
 
     val isFavorites = folderPath == "__favorites__"
     val isRootLevel = folderPath.isEmpty()
@@ -72,6 +75,35 @@ fun DirectoryScreen(
         else -> folderPath.substringAfterLast("/").ifEmpty { "视频" }
     }
 
+    val sortedFolders = remember(uiState.folders, sortMode) {
+        when (sortMode) {
+            "count" -> uiState.folders.sortedByDescending { it.videoCount }
+            "name_desc" -> uiState.folders.sortedByDescending { it.name }
+            else -> uiState.folders.sortedBy { it.name }
+        }
+    }
+    val sortedVideos = remember(uiState.videos, sortMode) {
+        when (sortMode) {
+            "date" -> uiState.videos.sortedByDescending { it.dateModified }
+            "size" -> uiState.videos.sortedByDescending { it.size }
+            "name_desc" -> uiState.videos.sortedByDescending { it.name }
+            else -> uiState.videos.sortedBy { it.name }
+        }
+    }
+
+    LaunchedEffect(Unit) {
+        while (true) {
+            val all = context.getSharedPreferences("favorite_move_progress", android.content.Context.MODE_PRIVATE).all
+            moveProgressText = all.entries.firstOrNull()?.let { entry ->
+                val parts = entry.value.toString().split('/')
+                val copied = parts.getOrNull(0)?.toLongOrNull() ?: 0L
+                val total = parts.getOrNull(1)?.toLongOrNull() ?: 1L
+                "正在移动收藏文件：${((copied * 100) / total.coerceAtLeast(1L))}%"
+            }.orEmpty()
+            kotlinx.coroutines.delay(1000)
+        }
+    }
+
     Scaffold(
         topBar = {
             TopAppBar(
@@ -91,7 +123,7 @@ fun DirectoryScreen(
                 },
                 colors = TopAppBarDefaults.topAppBarColors(containerColor = DarkBackground),
                 actions = {
-                    IconButton(onClick = { /* TODO: sort options */ }) {
+                    IconButton(onClick = { showSortDialog = true }) {
                         Icon(Icons.Default.Sort, "排序", tint = TextSecondary)
                     }
                 }
@@ -199,7 +231,7 @@ fun DirectoryScreen(
                     verticalArrangement = Arrangement.spacedBy(4.dp),
                     contentPadding = PaddingValues(vertical = 4.dp)
                 ) {
-                    items(uiState.folders, key = { it.path }) { folder ->
+                    items(sortedFolders, key = { it.path }) { folder ->
                         VideoFolderCard(
                             folder = folder,
                             onClick = {
@@ -234,11 +266,16 @@ fun DirectoryScreen(
                     verticalArrangement = Arrangement.spacedBy(4.dp),
                     contentPadding = PaddingValues(vertical = 4.dp)
                 ) {
-                    items(uiState.videos, key = { it.path }) { video ->
+                    if (moveProgressText.isNotEmpty()) {
+                        item(span = { androidx.compose.foundation.lazy.grid.GridItemSpan(maxLineSpan) }) {
+                            Text(moveProgressText, color = Yellow500, modifier = Modifier.padding(8.dp), fontSize = 13.sp)
+                        }
+                    }
+                    items(sortedVideos, key = { it.path }) { video ->
                         VideoThumbnailCard(
                             video = video,
                             onClick = {
-                                val idx = uiState.videos.indexOf(video)
+                                val idx = sortedVideos.indexOf(video)
                                 navController.navigate(
                                     Routes.player(source, uiState.currentFolderPath, idx)
                                 )
@@ -248,6 +285,41 @@ fun DirectoryScreen(
                 }
             }
         }
+    }
+
+    if (showSortDialog) {
+        AlertDialog(
+            onDismissRequest = { showSortDialog = false },
+            containerColor = DarkSurface,
+            titleContentColor = TextPrimary,
+            textContentColor = TextSecondary,
+            title = { Text("排序方式", fontWeight = FontWeight.Bold) },
+            text = {
+                Column {
+                    listOf(
+                        "name" to "名称 A-Z",
+                        "name_desc" to "名称 Z-A",
+                        "date" to "最新优先",
+                        "size" to "大文件优先",
+                        "count" to "文件夹视频数"
+                    ).forEach { (key, label) ->
+                        Row(verticalAlignment = Alignment.CenterVertically) {
+                            RadioButton(
+                                selected = sortMode == key,
+                                onClick = { sortMode = key; showSortDialog = false },
+                                colors = RadioButtonDefaults.colors(selectedColor = Yellow500)
+                            )
+                            Text(label, color = TextPrimary)
+                        }
+                    }
+                }
+            },
+            confirmButton = {
+                TextButton(onClick = { showSortDialog = false }) {
+                    Text("关闭", color = Yellow500)
+                }
+            }
+        )
     }
 }
 
