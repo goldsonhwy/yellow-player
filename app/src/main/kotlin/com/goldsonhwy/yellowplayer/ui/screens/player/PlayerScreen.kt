@@ -120,8 +120,8 @@ fun PlayerScreen(
                 isPlaying = playbackState == Player.STATE_READY && player.playWhenReady
             }
 
-            override fun onIsPlayingChanged(isPlaying: Boolean) {
-                this@PlayerScreen.isPlaying = isPlaying
+            override fun onIsPlayingChanged(playing: Boolean) {
+                isPlaying = playing
             }
         })
     }
@@ -135,7 +135,7 @@ fun PlayerScreen(
         AndroidView(
             factory = { ctx ->
                 PlayerView(ctx).apply {
-                    this.player = this@PlayerScreen.player
+                    this.player = player
                     useController = false
                     keepScreenOn = true
                 }
@@ -248,12 +248,16 @@ fun PlayerScreen(
                         Spacer(Modifier.height(4.dp))
                     }
 
-                    LinearProgressIndicator(
-                        progress = {
+                    val progressVal = remember { mutableFloatStateOf(0f) }
+                    LaunchedEffect(player) {
+                        while (true) {
+                            delay(1000)
                             val dur = player.duration
-                            val pos = player.currentPosition
-                            if (dur > 0) (pos.toFloat() / dur) else 0f
-                        },
+                            progressVal.floatValue = if (dur > 0) player.currentPosition.toFloat() / dur else 0f
+                        }
+                    }
+                    LinearProgressIndicator(
+                        progress = progressVal.floatValue,
                         modifier = Modifier
                             .fillMaxWidth()
                             .height(3.dp),

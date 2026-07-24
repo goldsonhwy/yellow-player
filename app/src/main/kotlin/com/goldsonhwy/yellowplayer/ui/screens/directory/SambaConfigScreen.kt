@@ -113,6 +113,7 @@ fun SambaConfigScreen(navController: NavController) {
     }
 }
 
+@OptIn(ExperimentalMaterial3Api::class)
 @Composable
 private fun SambaServerCard(
     server: SambaServer,

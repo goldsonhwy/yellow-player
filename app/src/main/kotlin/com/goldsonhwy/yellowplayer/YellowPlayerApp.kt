@@ -18,7 +18,7 @@ class YellowPlayerApp : Application(), ImageLoaderFactory {
             .diskCache {
                 DiskCache.Builder()
                     .directory(cacheDir.resolve("coil_cache"))
-                    .maxSizeBytes(128 * 1024 * 1024) // 128MB
+                    .maxSizeBytes(128 * 1024 * 1024)
                     .build()
             }
             .crossfade(true)

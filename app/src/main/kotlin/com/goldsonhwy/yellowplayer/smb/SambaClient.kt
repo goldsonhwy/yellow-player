@@ -7,6 +7,7 @@ import com.goldsonhwy.yellowplayer.data.model.VideoInfo
 import com.goldsonhwy.yellowplayer.data.model.VideoSource
 import jcifs.CIFSContext
 import jcifs.CIFSException
+import jcifs.config.PropertyConfiguration
 import jcifs.context.BaseContext
 import jcifs.smb.NtlmPasswordAuthenticator
 import jcifs.smb.SmbFile
@@ -15,7 +16,7 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 import java.io.File
 import java.io.FileOutputStream
-import java.net.MalformedURLException
+import java.util.Properties
 
 /**
  * SMB client wrapper for jcifs-ng.
@@ -28,15 +29,13 @@ class SambaClient {
     /**
      * Create an authenticated CIFS context for a given server.
      */
-    private fun createContext(server: SambaServer): CIFSContext {
-        return cifsContext.get()?.let {
-            // Re-use context if credentials match
-            it
-        } ?: run {
+    private fun createContext(server: SambaServer): CIFSContext? {
+        return try {
             val auth = NtlmPasswordAuthenticator(server.username, server.password)
-            val ctx = BaseContext().withCredentials(auth)
-            cifsContext.set(ctx)
-            ctx
+            val config = PropertyConfiguration(Properties())
+            BaseContext(config).withCredentials(auth)
+        } catch (e: Exception) {
+            null
         }
     }
 
