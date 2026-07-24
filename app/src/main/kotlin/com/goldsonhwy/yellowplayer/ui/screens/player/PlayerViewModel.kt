@@ -37,10 +37,15 @@ class PlayerViewModel(application: Application) : AndroidViewModel(application) 
                     folderPath == "__favorites__" -> {
                         _uiState.value = PlayerUiState(videos = repository.getFavoriteVideos())
                     }
-                    source == VideoSource.LOCAL -> {
-                        val videos = withTimeoutOrNull(20_000L) {
+                    source == VideoSource.LOCAL || source == VideoSource.SAMBA -> {
+                        val videos = withTimeoutOrNull(60_000L) {
                             withContext(Dispatchers.IO) {
-                                repository.getVideosInLocalFolder(folderPath)
+                                if (source == VideoSource.SAMBA) {
+                                    val raw = repository.listSambaVideosById(folderPath.substringBefore('|').toLongOrNull() ?: 0L, folderPath.substringAfter('|', folderPath)).getOrElse { emptyList() }
+                                    repository.cacheSambaVideosForLocalUse(folderPath.substringBefore('|').toLongOrNull() ?: 0L, raw)
+                                } else {
+                                    repository.getVideosInLocalFolder(folderPath)
+                                }
                             }
                         }
                         _uiState.value = if (videos == null) {
@@ -70,5 +75,11 @@ class PlayerViewModel(application: Application) : AndroidViewModel(application) 
 
     suspend fun moveFavoriteAfterRelease(path: String): VideoInfo? = withContext(Dispatchers.IO) {
         repository.moveFavoriteAfterRelease(path)
+    }
+
+    fun moveFavoriteAfterReleaseAsync(path: String) {
+        viewModelScope.launch(Dispatchers.IO) {
+            repository.moveFavoriteAfterRelease(path)
+        }
     }
 }

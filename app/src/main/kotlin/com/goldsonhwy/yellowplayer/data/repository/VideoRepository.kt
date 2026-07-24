@@ -138,6 +138,24 @@ class VideoRepository(private val context: Context) {
         return sambaClient.cacheForThumbnail(server, remotePath, cacheDir)
     }
 
+    suspend fun cacheSambaVideoForLocalPlayback(serverId: Long, video: VideoInfo): VideoInfo {
+        val server = getSambaServer(serverId) ?: return video
+        val cacheDir = File(context.cacheDir, "smb_playback_cache").apply { mkdirs() }
+        return sambaClient.cacheForThumbnail(server, video.path, cacheDir)
+            .getOrNull()
+            ?.let { localPath ->
+                video.copy(
+                    uri = Uri.fromFile(File(localPath)).toString(),
+                    path = localPath,
+                    source = VideoSource.LOCAL
+                )
+            } ?: video
+    }
+
+    suspend fun cacheSambaVideosForLocalUse(serverId: Long, videos: List<VideoInfo>): List<VideoInfo> = withContext(Dispatchers.IO) {
+        videos.map { cacheSambaVideoForLocalPlayback(serverId, it) }
+    }
+
     // ─── Playback Progress ────────────────────────────────────
 
     suspend fun getPlaybackProgress(path: String): Long {

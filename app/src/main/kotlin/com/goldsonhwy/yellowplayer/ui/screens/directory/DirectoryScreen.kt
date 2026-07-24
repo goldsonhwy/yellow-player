@@ -277,7 +277,7 @@ fun DirectoryScreen(
                             onClick = {
                                 val idx = uiState.videos.indexOf(video)
                                 navController.navigate(
-                                    Routes.player(source, uiState.currentFolderPath, idx)
+                                    Routes.player(source, if (source == VideoSource.SAMBA) "${serverId}|${uiState.currentFolderPath}" else uiState.currentFolderPath, idx)
                                 )
                             }
                         )

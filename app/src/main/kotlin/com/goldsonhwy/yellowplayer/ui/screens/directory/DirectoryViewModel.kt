@@ -164,7 +164,10 @@ class DirectoryViewModel(application: Application) : AndroidViewModel(applicatio
                             repository.listSambaVideosById(serverId, folderPath)
                         }
                         val folders = foldersResult.getOrElse { emptyList() }
-                        val videos = videosResult.getOrElse { emptyList() }
+                        val rawVideos = videosResult.getOrElse { emptyList() }
+                        val videos = if (rawVideos.isNotEmpty()) {
+                            withContext(Dispatchers.IO) { repository.cacheSambaVideosForLocalUse(serverId, rawVideos) }
+                        } else emptyList()
                         if (foldersResult.isFailure && videosResult.isFailure) {
                             _uiState.value = DirectoryUiState(
                                 isLoading = false,

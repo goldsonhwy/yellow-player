@@ -111,7 +111,7 @@ fun PlayerScreen(
             val path = currentPathForDispose
             player.release()
             if (path != null) {
-                scope.launch { viewModel.moveFavoriteAfterRelease(path) }
+                viewModel.moveFavoriteAfterReleaseAsync(path)
             }
         }
     }
