@@ -157,26 +157,29 @@ class DirectoryViewModel(application: Application) : AndroidViewModel(applicatio
                         }
                     }
                     source == VideoSource.SAMBA -> {
-                        val result = withContext(Dispatchers.IO) {
+                        val foldersResult = withContext(Dispatchers.IO) {
+                            repository.listSambaFoldersById(serverId, folderPath)
+                        }
+                        val videosResult = withContext(Dispatchers.IO) {
                             repository.listSambaVideosById(serverId, folderPath)
                         }
-                        result.fold(
-                            onSuccess = { videos ->
-                                _uiState.value = DirectoryUiState(
-                                    videos = videos,
-                                    isLoading = false,
-                                    isSingleFolder = true,
-                                    currentFolderPath = folderPath
-                                )
-                            },
-                            onFailure = { err ->
-                                _uiState.value = DirectoryUiState(
-                                    isLoading = false,
-                                    currentFolderPath = folderPath,
-                                    error = "Samba 视频读取失败：${err.message.orEmpty()}"
-                                )
-                            }
-                        )
+                        val folders = foldersResult.getOrElse { emptyList() }
+                        val videos = videosResult.getOrElse { emptyList() }
+                        if (foldersResult.isFailure && videosResult.isFailure) {
+                            _uiState.value = DirectoryUiState(
+                                isLoading = false,
+                                currentFolderPath = folderPath,
+                                error = "Samba 目录读取失败：${foldersResult.exceptionOrNull()?.message.orEmpty()}"
+                            )
+                        } else {
+                            _uiState.value = DirectoryUiState(
+                                folders = folders,
+                                videos = videos,
+                                isLoading = false,
+                                isSingleFolder = folders.isEmpty(),
+                                currentFolderPath = folderPath
+                            )
+                        }
                     }
                     else -> Unit
                 }

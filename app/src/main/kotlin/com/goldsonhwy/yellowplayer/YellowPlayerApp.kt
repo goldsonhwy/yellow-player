@@ -34,7 +34,7 @@ class YellowPlayerApp : Application(), ImageLoaderFactory {
             .components {
                 add(VideoFrameDecoder.Factory())
             }
-            .crossfade(true)
+            .crossfade(false)
             .build()
     }
 }

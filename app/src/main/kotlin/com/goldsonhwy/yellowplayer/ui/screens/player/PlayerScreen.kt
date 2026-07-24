@@ -4,6 +4,7 @@ import android.content.Intent
 import android.net.Uri
 import android.widget.Toast
 import androidx.compose.foundation.background
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.gestures.detectHorizontalDragGestures
 import androidx.compose.foundation.gestures.detectTapGestures
 import androidx.compose.foundation.gestures.detectVerticalDragGestures
@@ -73,7 +74,7 @@ fun PlayerScreen(
     val player = remember {
         ExoPlayer.Builder(context).build().apply {
             playWhenReady = true
-            repeatMode = Player.REPEAT_MODE_OFF
+            repeatMode = Player.REPEAT_MODE_ONE
         }
     }
 
@@ -103,8 +104,16 @@ fun PlayerScreen(
         }
     }
 
+    val currentPathForDispose by rememberUpdatedState(videos.getOrNull(currentIndex)?.path)
+
     DisposableEffect(Unit) {
-        onDispose { player.release() }
+        onDispose {
+            val path = currentPathForDispose
+            player.release()
+            if (path != null) {
+                scope.launch { viewModel.moveFavoriteAfterRelease(path) }
+            }
+        }
     }
 
     LaunchedEffect(videos.getOrNull(currentIndex)?.path) {
@@ -221,23 +230,24 @@ fun PlayerScreen(
                 Row(
                     modifier = Modifier
                         .fillMaxWidth()
-                        .background(Color.Black.copy(alpha = 0.35f))
                         .padding(horizontal = 4.dp, vertical = 2.dp),
                     horizontalArrangement = Arrangement.SpaceEvenly,
                     verticalAlignment = Alignment.CenterVertically
                 ) {
                     listOf(0.5f, 1f, 1.5f, 2f, 3f, 4f, 5f).forEach { speed ->
-                        androidx.compose.material3.TextButton(
-                            onClick = {
+                        androidx.compose.material3.Surface(
+                            modifier = Modifier.clickable {
                                 currentSpeed = speed
                                 player.setPlaybackSpeed(speed)
                             },
-                            contentPadding = PaddingValues(horizontal = 4.dp, vertical = 0.dp)
+                            shape = androidx.compose.material3.MaterialTheme.shapes.extraLarge,
+                            color = if (currentSpeed == speed) Yellow500 else DarkSurfaceVariant
                         ) {
                             androidx.compose.material3.Text(
                                 text = if (speed == 1f) "正常" else "${speed}x",
-                                color = if (currentSpeed == speed) Yellow500 else White,
-                                fontSize = 11.sp
+                                color = if (currentSpeed == speed) Black else White,
+                                fontSize = 11.sp,
+                                modifier = Modifier.padding(horizontal = 7.dp, vertical = 3.dp)
                             )
                         }
                     }
@@ -277,44 +287,49 @@ fun PlayerScreen(
                 horizontalArrangement = Arrangement.SpaceEvenly,
                 verticalAlignment = Alignment.CenterVertically
             ) {
-                IconButton(
+                CapsuleIconButton(
                     onClick = { stepFrame(-33L) },
-                    modifier = Modifier.weight(1f)
+                    modifier = Modifier.weight(1f),
+                    contentDescription = "逐帧后退"
                 ) {
-                    Icon(Icons.Default.SkipPrevious, "逐帧后退", tint = White, modifier = Modifier.size(34.dp))
+                    Icon(Icons.Default.SkipPrevious, "逐帧后退", tint = White, modifier = Modifier.size(24.dp))
                 }
 
-                IconButton(
+                CapsuleIconButton(
                     onClick = { shareCurrentVideo() },
-                    modifier = Modifier.weight(1f)
+                    modifier = Modifier.weight(1f),
+                    contentDescription = "分享"
                 ) {
-                    Icon(Icons.Default.Share, "分享", tint = White, modifier = Modifier.size(34.dp))
+                    Icon(Icons.Default.Share, "分享", tint = White, modifier = Modifier.size(24.dp))
                 }
 
-                IconButton(
+                CapsuleIconButton(
                     onClick = { toggleCurrentFavorite(showAnimation = true) },
-                    modifier = Modifier.weight(1f)
+                    modifier = Modifier.weight(1f),
+                    contentDescription = "收藏"
                 ) {
                     Icon(
                         if (isFavorite) Icons.Default.Favorite else Icons.Default.FavoriteBorder,
                         "收藏",
                         tint = if (isFavorite) LikeRed else White,
-                        modifier = Modifier.size(34.dp)
+                        modifier = Modifier.size(24.dp)
                     )
                 }
 
-                IconButton(
+                CapsuleIconButton(
                     onClick = { deleteCurrentVideo() },
-                    modifier = Modifier.weight(1f)
+                    modifier = Modifier.weight(1f),
+                    contentDescription = "删除"
                 ) {
-                    Icon(Icons.Default.Delete, "删除", tint = White, modifier = Modifier.size(34.dp))
+                    Icon(Icons.Default.Delete, "删除", tint = White, modifier = Modifier.size(24.dp))
                 }
 
-                IconButton(
+                CapsuleIconButton(
                     onClick = { stepFrame(33L) },
-                    modifier = Modifier.weight(1f)
+                    modifier = Modifier.weight(1f),
+                    contentDescription = "逐帧前进"
                 ) {
-                    Icon(Icons.Default.SkipNext, "逐帧前进", tint = White, modifier = Modifier.size(34.dp))
+                    Icon(Icons.Default.SkipNext, "逐帧前进", tint = White, modifier = Modifier.size(24.dp))
                 }
             }
         }
@@ -350,10 +365,6 @@ fun PlayerScreen(
                             totalDrag += dragAmount
                         },
                         onDragEnd = {
-                            if (currentSpeed != 1f) {
-                                currentSpeed = 1f
-                                player.setPlaybackSpeed(1f)
-                            }
                             if (videos.isNotEmpty()) {
                                 when {
                                     totalDrag < -120f && currentIndex < videos.lastIndex -> switchToIndex(currentIndex + 1)
@@ -380,5 +391,26 @@ fun PlayerScreen(
                     )
                 }
         )
+    }
+}
+
+@Composable
+private fun CapsuleIconButton(
+    onClick: () -> Unit,
+    modifier: Modifier = Modifier,
+    contentDescription: String,
+    content: @Composable () -> Unit
+) {
+    androidx.compose.material3.Surface(
+        modifier = modifier
+            .padding(horizontal = 3.dp)
+            .height(38.dp)
+            .clickable(onClick = onClick),
+        shape = androidx.compose.material3.MaterialTheme.shapes.extraLarge,
+        color = DarkSurfaceVariant
+    ) {
+        Box(contentAlignment = Alignment.Center) {
+            content()
+        }
     }
 }

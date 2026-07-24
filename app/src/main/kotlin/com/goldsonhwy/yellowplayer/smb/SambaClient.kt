@@ -86,11 +86,13 @@ class SambaClient {
     /**
      * List all folders/shares on a server.
      */
-    suspend fun listFolders(server: SambaServer): Result<List<VideoFolder>> =
+    suspend fun listFolders(server: SambaServer, folderPath: String = ""): Result<List<VideoFolder>> =
         withContext(Dispatchers.IO) {
             try {
                 val ctx = createContext(server)
-                val url = buildSmbUrl(server)
+                val url = if (folderPath.isNotBlank()) {
+                    if (folderPath.endsWith("/")) folderPath else "$folderPath/"
+                } else buildSmbUrl(server)
                 val smbFile = SmbFile(url, ctx)
                 val entries = smbFile.listFiles()
 

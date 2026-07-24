@@ -113,6 +113,11 @@ class VideoRepository(private val context: Context) {
         return sambaClient.listFolders(server)
     }
 
+    suspend fun listSambaFoldersById(serverId: Long, folderPath: String): Result<List<VideoFolder>> {
+        val server = getSambaServer(serverId) ?: return Result.failure(IllegalArgumentException("Samba server not found: $serverId"))
+        return sambaClient.listFolders(server, folderPath)
+    }
+
     suspend fun listSambaVideosById(serverId: Long, folderPath: String): Result<List<VideoInfo>> {
         val server = getSambaServer(serverId) ?: return Result.failure(IllegalArgumentException("Samba server not found: $serverId"))
         return sambaClient.listVideos(server, folderPath)
