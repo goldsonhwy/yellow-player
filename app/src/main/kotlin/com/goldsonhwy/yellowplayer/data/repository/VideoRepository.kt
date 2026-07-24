@@ -6,6 +6,7 @@ import com.goldsonhwy.yellowplayer.data.local.db.*
 import com.goldsonhwy.yellowplayer.data.local.preferences.SettingsDataStore
 import com.goldsonhwy.yellowplayer.data.model.*
 import com.goldsonhwy.yellowplayer.data.scanner.VideoScanner
+import com.goldsonhwy.yellowplayer.data.scanner.LocalGalleryCache
 import com.goldsonhwy.yellowplayer.smb.SambaClient
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.Flow
@@ -36,6 +37,8 @@ class VideoRepository(private val context: Context) {
 
     suspend fun scanLocalFolders(source: VideoSource = VideoSource.LOCAL): List<VideoFolder> =
         withContext(Dispatchers.IO) {
+            LocalGalleryCache.folders?.let { return@withContext it }
+
             val savedRoots = context.getSharedPreferences("local_video_folders", Context.MODE_PRIVATE)
                 .getStringSet("paths", emptySet())
                 .orEmpty()

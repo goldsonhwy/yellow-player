@@ -29,6 +29,7 @@ import androidx.compose.ui.unit.sp
 import androidx.core.content.ContextCompat
 import androidx.navigation.NavController
 import com.goldsonhwy.yellowplayer.data.model.VideoSource
+import com.goldsonhwy.yellowplayer.data.scanner.LocalGalleryCache
 import com.goldsonhwy.yellowplayer.ui.navigation.Routes
 import com.goldsonhwy.yellowplayer.ui.theme.*
 
@@ -54,6 +55,7 @@ fun SourceSelectScreen(navController: NavController) {
         set.add(path)
         prefs.edit().putStringSet("paths", set).apply()
         refreshSavedFolders()
+        LocalGalleryCache.clearAndRestart(context)
     }
 
     fun removeFolder(path: String) {
@@ -61,6 +63,7 @@ fun SourceSelectScreen(navController: NavController) {
         set.remove(path)
         prefs.edit().putStringSet("paths", set).apply()
         refreshSavedFolders()
+        LocalGalleryCache.clearAndRestart(context)
     }
 
     val folderPickerLauncher = rememberLauncherForActivityResult(
@@ -216,7 +219,7 @@ fun SourceSelectScreen(navController: NavController) {
                 fontSize = 12.sp,
                 modifier = Modifier.fillMaxWidth().padding(horizontal = 4.dp)
             )
-            Text("v0.0.16", color = TextHint, fontSize = 12.sp, modifier = Modifier.align(Alignment.CenterHorizontally))
+            Text("v0.0.17", color = TextHint, fontSize = 12.sp, modifier = Modifier.align(Alignment.CenterHorizontally))
         }
     }
 

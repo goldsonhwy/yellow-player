@@ -24,6 +24,7 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.sp
 import androidx.compose.ui.viewinterop.AndroidView
 import androidx.core.content.FileProvider
 import androidx.lifecycle.viewmodel.compose.viewModel
@@ -82,6 +83,7 @@ fun PlayerScreen(
             // Do not clear/stop first; this reduces black flicker when switching videos.
             player.setMediaItem(MediaItem.fromUri(video.fileUri), 0L)
             player.prepare()
+            player.setPlaybackSpeed(currentSpeed)
             player.playWhenReady = true
         }
     }
@@ -197,20 +199,49 @@ fun PlayerScreen(
 
         // Top progress bar.
         if (videos.isNotEmpty()) {
-            Box(
+            Column(
                 modifier = Modifier
                     .align(Alignment.TopCenter)
                     .fillMaxWidth()
                     .statusBarsPadding()
-                    .height(8.dp)
-                    .background(Yellow500.copy(alpha = 0.22f))
             ) {
                 Box(
                     modifier = Modifier
-                        .fillMaxWidth(progress.coerceIn(0.02f, 1f))
+                        .fillMaxWidth()
                         .height(8.dp)
-                        .background(Yellow500)
-                )
+                        .background(Yellow500.copy(alpha = 0.22f))
+                ) {
+                    Box(
+                        modifier = Modifier
+                            .fillMaxWidth(progress.coerceIn(0.02f, 1f))
+                            .height(8.dp)
+                            .background(Yellow500)
+                    )
+                }
+                Row(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .background(Color.Black.copy(alpha = 0.35f))
+                        .padding(horizontal = 4.dp, vertical = 2.dp),
+                    horizontalArrangement = Arrangement.SpaceEvenly,
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    listOf(0.5f, 1f, 1.5f, 2f, 3f, 4f, 5f).forEach { speed ->
+                        androidx.compose.material3.TextButton(
+                            onClick = {
+                                currentSpeed = speed
+                                player.setPlaybackSpeed(speed)
+                            },
+                            contentPadding = PaddingValues(horizontal = 4.dp, vertical = 0.dp)
+                        ) {
+                            androidx.compose.material3.Text(
+                                text = if (speed == 1f) "正常" else "${speed}x",
+                                color = if (currentSpeed == speed) Yellow500 else White,
+                                fontSize = 11.sp
+                            )
+                        }
+                    }
+                }
             }
         }
 
@@ -292,6 +323,8 @@ fun PlayerScreen(
         Box(
             modifier = Modifier
                 .fillMaxSize()
+                .statusBarsPadding()
+                .padding(top = 44.dp)
                 .navigationBarsPadding()
                 .padding(bottom = 92.dp)
                 .pointerInput(videos, currentIndex) {

@@ -6,6 +6,7 @@ import coil.ImageLoaderFactory
 import coil.disk.DiskCache
 import coil.memory.MemoryCache
 import coil.decode.VideoFrameDecoder
+import com.goldsonhwy.yellowplayer.data.scanner.LocalGalleryCache
 import com.goldsonhwy.yellowplayer.util.CrashReporter
 
 class YellowPlayerApp : Application(), ImageLoaderFactory {
@@ -14,6 +15,7 @@ class YellowPlayerApp : Application(), ImageLoaderFactory {
         super.onCreate()
         CrashReporter.install(this)
         CrashReporter.writeDebugSnapshot(this, "application start")
+        LocalGalleryCache.start(this)
     }
 
     override fun newImageLoader(): ImageLoader {

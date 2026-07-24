@@ -275,7 +275,7 @@ fun DirectoryScreen(
                         VideoThumbnailCard(
                             video = video,
                             onClick = {
-                                val idx = sortedVideos.indexOf(video)
+                                val idx = uiState.videos.indexOf(video)
                                 navController.navigate(
                                     Routes.player(source, uiState.currentFolderPath, idx)
                                 )
