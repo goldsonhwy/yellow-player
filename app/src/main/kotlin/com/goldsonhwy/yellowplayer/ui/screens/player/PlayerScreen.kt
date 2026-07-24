@@ -44,6 +44,7 @@ fun PlayerScreen(
     var isPlaying by remember { mutableStateOf(true) }
     var showControls by remember { mutableStateOf(true) }
     var isFavorite by remember { mutableStateOf(false) }
+    var showLikeAnimation by remember { mutableStateOf(false) }
     var currentSpeed by remember { mutableFloatStateOf(1f) }
     var longPressSpeed by remember { mutableFloatStateOf(2f) }
     var isSeeking by remember { mutableStateOf(false) }
@@ -99,6 +100,13 @@ fun PlayerScreen(
         if (showControls) {
             delay(3000)
             showControls = false
+        }
+    }
+
+    LaunchedEffect(showLikeAnimation) {
+        if (showLikeAnimation) {
+            delay(700)
+            showLikeAnimation = false
         }
     }
 
@@ -213,19 +221,56 @@ fun PlayerScreen(
                     )
                 }
 
-                Column(
-                    modifier = Modifier.align(Alignment.BottomCenter).fillMaxWidth().navigationBarsPadding().padding(16.dp)
+                Box(
+                    modifier = Modifier
+                        .align(Alignment.BottomCenter)
+                        .fillMaxWidth()
+                        .navigationBarsPadding()
+                        .padding(horizontal = 16.dp, vertical = 16.dp)
+                        .height(3.dp)
+                        .background(White.copy(alpha = 0.2f))
                 ) {
-                    if (currentSpeed != 1f) {
-                        Surface(shape = MaterialTheme.shapes.small, color = Yellow500.copy(alpha = 0.9f)) {
-                            Text("${currentSpeed}x", color = Black, fontWeight = FontWeight.Bold, fontSize = 12.sp, modifier = Modifier.padding(horizontal = 8.dp, vertical = 2.dp))
-                        }
-                        Spacer(Modifier.height(4.dp))
-                    }
-                    Box(Modifier.fillMaxWidth().height(3.dp).background(White.copy(alpha = 0.2f))) {
-                        Box(Modifier.fillMaxWidth(progress.coerceIn(0f, 1f)).height(3.dp).background(Yellow500))
-                    }
+                    Box(
+                        modifier = Modifier
+                            .fillMaxWidth(progress.coerceIn(0f, 1f))
+                            .height(3.dp)
+                            .background(Yellow500)
+                    )
                 }
+            }
+        }
+
+        if (showLikeAnimation) {
+            Box(
+                modifier = Modifier.fillMaxSize(),
+                contentAlignment = Alignment.Center
+            ) {
+                Icon(
+                    Icons.Default.Favorite,
+                    contentDescription = null,
+                    tint = LikeRed,
+                    modifier = Modifier.size(128.dp)
+                )
+            }
+        }
+
+        // Bottom progress bar is always visible, even when controls are hidden.
+        if (videos.isNotEmpty()) {
+            Box(
+                modifier = Modifier
+                    .align(Alignment.BottomCenter)
+                    .fillMaxWidth()
+                    .navigationBarsPadding()
+                    .padding(horizontal = 16.dp, vertical = 16.dp)
+                    .height(3.dp)
+                    .background(White.copy(alpha = 0.2f))
+            ) {
+                Box(
+                    modifier = Modifier
+                        .fillMaxWidth(progress.coerceIn(0f, 1f))
+                        .height(3.dp)
+                        .background(Yellow500)
+                )
             }
         }
 
@@ -236,7 +281,10 @@ fun PlayerScreen(
                 .pointerInput(videos, currentIndex) {
                     detectTapGestures(
                         onTap = { showControls = !showControls },
-                        onDoubleTap = { isFavorite = !isFavorite },
+                        onDoubleTap = {
+                            isFavorite = !isFavorite
+                            showLikeAnimation = true
+                        },
                         onLongPress = {
                             currentSpeed = longPressSpeed
                             player.setPlaybackSpeed(longPressSpeed)

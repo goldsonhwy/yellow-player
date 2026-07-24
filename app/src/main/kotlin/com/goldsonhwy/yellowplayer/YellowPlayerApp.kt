@@ -5,6 +5,7 @@ import coil.ImageLoader
 import coil.ImageLoaderFactory
 import coil.disk.DiskCache
 import coil.memory.MemoryCache
+import coil.decode.VideoFrameDecoder
 import com.goldsonhwy.yellowplayer.util.CrashReporter
 
 class YellowPlayerApp : Application(), ImageLoaderFactory {
@@ -27,6 +28,9 @@ class YellowPlayerApp : Application(), ImageLoaderFactory {
                     .directory(cacheDir.resolve("coil_cache"))
                     .maxSizeBytes(128 * 1024 * 1024)
                     .build()
+            }
+            .components {
+                add(VideoFrameDecoder.Factory())
             }
             .crossfade(true)
             .build()

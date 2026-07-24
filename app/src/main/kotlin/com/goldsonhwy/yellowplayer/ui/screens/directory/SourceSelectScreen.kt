@@ -7,6 +7,7 @@ import android.net.Uri
 import android.os.Build
 import android.os.Environment
 import android.provider.Settings
+import android.provider.DocumentsContract
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.clickable
@@ -74,6 +75,26 @@ fun SourceSelectScreen(navController: NavController) {
         }
     }
 
+    val folderPickerLauncher = rememberLauncherForActivityResult(
+        contract = ActivityResultContracts.OpenDocumentTree()
+    ) { uri ->
+        if (uri != null) {
+            try {
+                context.contentResolver.takePersistableUriPermission(
+                    uri,
+                    Intent.FLAG_GRANT_READ_URI_PERMISSION or Intent.FLAG_GRANT_WRITE_URI_PERMISSION
+                )
+            } catch (_: Exception) { }
+            val path = treeUriToPrimaryPath(uri)
+            if (path != null) {
+                navController.navigate(Routes.directory(VideoSource.LOCAL, path))
+            } else {
+                permissionDialogMessage = "当前只支持手机主存储目录。请选择内部存储中的视频文件夹。"
+                showPermissionDialog = true
+            }
+        }
+    }
+
     // ─── Click handler (inlined, no forward references) ─────
 
     fun onLocalStorageClick() {
@@ -98,7 +119,7 @@ fun SourceSelectScreen(navController: NavController) {
                 pendingSource = source
                 launcherReadStorage.launch(Manifest.permission.READ_EXTERNAL_STORAGE)
             }
-            else -> navController.navigate(Routes.directory(source))
+            else -> folderPickerLauncher.launch(null)
         }
     }
 
@@ -145,8 +166,8 @@ fun SourceSelectScreen(navController: NavController) {
             )
 
             SourceCard(
-                title = "本地存储",
-                subtitle = Environment.getExternalStorageDirectory().path,
+                title = "添加本地视频文件夹",
+                subtitle = "只读取你选择的文件夹及其子目录（含 .nomedia 视频）",
                 icon = Icons.Default.Storage,
                 onClick = { onLocalStorageClick() }
             )
@@ -202,7 +223,7 @@ fun SourceSelectScreen(navController: NavController) {
             )
 
             Text(
-                text = "v0.0.9",
+                text = "v0.0.10",
                 color = TextHint,
                 fontSize = 12.sp,
                 modifier = Modifier.align(Alignment.CenterHorizontally)
@@ -238,7 +259,7 @@ fun SourceSelectScreen(navController: NavController) {
                     },
                     colors = ButtonDefaults.buttonColors(containerColor = Yellow500)
                 ) {
-                    Text(if (Build.VERSION.SDK_INT >= 30 && !Environment.isExternalStorageManager()) "去授权" else "重试", color = Black)
+                    Text(if (Build.VERSION.SDK_INT >= 30 && !Environment.isExternalStorageManager()) "去授权" else "知道了", color = Black)
                 }
             },
             dismissButton = {
@@ -292,5 +313,18 @@ private fun SourceCard(
                 )
             }
         }
+    }
+}
+
+private fun treeUriToPrimaryPath(uri: Uri): String? {
+    return try {
+        val treeId = DocumentsContract.getTreeDocumentId(uri)
+        if (treeId == "primary:") return Environment.getExternalStorageDirectory().absolutePath
+        if (treeId.startsWith("primary:")) {
+            val rel = treeId.removePrefix("primary:")
+            Environment.getExternalStorageDirectory().absolutePath + "/" + rel
+        } else null
+    } catch (_: Exception) {
+        null
     }
 }

@@ -12,8 +12,8 @@ android {
         applicationId = "com.goldsonhwy.yellowplayer"
         minSdk = 26
         targetSdk = 34
-        versionCode = 9
-        versionName = "0.0.9"
+        versionCode = 10
+        versionName = "0.0.10"
 
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
         vectorDrawables {
@@ -90,6 +90,7 @@ dependencies {
     // Coil (thumbnails + ImageLoaderFactory)
     implementation("io.coil-kt:coil-compose:2.5.0")
     implementation("io.coil-kt:coil:2.5.0")
+    implementation("io.coil-kt:coil-video:2.5.0")
 
     // Glide (thumbnails)
     implementation("com.github.bumptech.glide:glide:4.16.0")

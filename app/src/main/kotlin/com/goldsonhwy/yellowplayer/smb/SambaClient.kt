@@ -38,8 +38,22 @@ class SambaClient {
      */
     private fun createContext(server: SambaServer): CIFSContext? {
         return try {
-            val auth = NtlmPasswordAuthenticator(server.username, server.password)
-            val config = PropertyConfiguration(Properties())
+            val rawUser = server.username
+            val auth = if (rawUser.contains("\\\\")) {
+                val domain = rawUser.substringBefore("\\\\")
+                val user = rawUser.substringAfter("\\\\")
+                NtlmPasswordAuthenticator(domain, user, server.password)
+            } else {
+                // Empty username/password works for guest/anonymous shares.
+                NtlmPasswordAuthenticator(null, rawUser, server.password)
+            }
+            val props = Properties().apply {
+                setProperty("jcifs.smb.client.enableSMB2", "true")
+                setProperty("jcifs.smb.client.disableSMB1", "true")
+                setProperty("jcifs.smb.client.responseTimeout", "8000")
+                setProperty("jcifs.smb.client.soTimeout", "8000")
+            }
+            val config = PropertyConfiguration(props)
             BaseContext(config).withCredentials(auth)
         } catch (e: Exception) {
             null
