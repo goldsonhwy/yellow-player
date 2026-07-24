@@ -180,49 +180,58 @@ class VideoRepository(private val context: Context) {
             favoriteDao.removeFavoriteByPath(video.path)
             null
         } else {
-            val original = File(video.path)
-            val favoriteRoot = context.getSharedPreferences("favorite_move", Context.MODE_PRIVATE)
-                .getString("dir", "")
-                .orEmpty()
-            val savedRoots = context.getSharedPreferences("local_video_folders", Context.MODE_PRIVATE)
-                .getStringSet("paths", emptySet())
-                .orEmpty()
-            var currentPath = video.path
-            var currentFolder = video.folderPath
-            var moved = false
-
-            if (favoriteRoot.isNotBlank() && original.exists() && video.source == VideoSource.LOCAL) {
-                val base = savedRoots.firstOrNull { video.path.startsWith(it.trimEnd('/') + "/") }
-                    ?: original.parentFile?.absolutePath.orEmpty()
-                val rel = if (base.isNotBlank()) video.path.removePrefix(base).trimStart('/') else original.name
-                val target = File(favoriteRoot, rel)
-                target.parentFile?.mkdirs()
-                if (original.renameTo(target)) {
-                    currentPath = target.absolutePath
-                    currentFolder = target.parentFile?.absolutePath.orEmpty()
-                    moved = true
-                }
-            }
-
-            val savedVideo = video.copy(
-                path = currentPath,
-                uri = Uri.fromFile(File(currentPath)).toString(),
-                folderPath = currentFolder
-            )
+            // Mark favorite only. Do NOT move immediately; move after playback releases
+            // the file when user switches away.
             favoriteDao.addFavorite(
                 FavoriteEntity(
                     originalPath = video.path,
-                    currentPath = currentPath,
+                    currentPath = video.path,
                     name = video.name,
                     originalFolderPath = video.folderPath,
-                    currentFolderPath = currentFolder,
+                    currentFolderPath = video.folderPath,
                     source = video.source,
                     serverId = video.serverId,
-                    movedToFavoriteDir = moved
+                    movedToFavoriteDir = false
                 )
             )
-            savedVideo
+            video
         }
+    }
+
+    suspend fun moveFavoriteAfterRelease(path: String): VideoInfo? = withContext(Dispatchers.IO) {
+        val fav = favoriteDao.getFavoriteByAnyPath(path) ?: return@withContext null
+        if (fav.movedToFavoriteDir || fav.source != VideoSource.LOCAL) return@withContext null
+        val favoriteRoot = context.getSharedPreferences("favorite_move", Context.MODE_PRIVATE)
+            .getString("dir", "")
+            .orEmpty()
+        if (favoriteRoot.isBlank()) return@withContext null
+
+        val current = File(fav.currentPath)
+        if (!current.exists()) return@withContext null
+        val savedRoots = context.getSharedPreferences("local_video_folders", Context.MODE_PRIVATE)
+            .getStringSet("paths", emptySet())
+            .orEmpty()
+        val base = savedRoots.firstOrNull { fav.originalPath.startsWith(it.trimEnd('/') + "/") }
+            ?: File(fav.originalPath).parentFile?.absolutePath.orEmpty()
+        val rel = if (base.isNotBlank()) fav.originalPath.removePrefix(base).trimStart('/') else current.name
+        val target = File(favoriteRoot, rel)
+        target.parentFile?.mkdirs()
+        if (!current.renameTo(target)) return@withContext null
+
+        val updated = fav.copy(
+            currentPath = target.absolutePath,
+            currentFolderPath = target.parentFile?.absolutePath.orEmpty(),
+            movedToFavoriteDir = true
+        )
+        favoriteDao.updateFavorite(updated)
+        VideoInfo(
+            name = updated.name,
+            path = updated.currentPath,
+            uri = Uri.fromFile(File(updated.currentPath)).toString(),
+            folderPath = updated.currentFolderPath,
+            source = updated.source,
+            serverId = updated.serverId
+        )
     }
 
     // ─── Settings ─────────────────────────────────────────────

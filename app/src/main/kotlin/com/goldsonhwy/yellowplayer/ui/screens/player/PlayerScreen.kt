@@ -161,9 +161,24 @@ fun PlayerScreen(
     }
 
     fun stepFrame(deltaMs: Long) {
+        player.playWhenReady = false
         player.pause()
         val duration = player.duration.takeIf { it > 0 } ?: Long.MAX_VALUE
-        player.seekTo((player.currentPosition + deltaMs).coerceIn(0L, duration))
+        val target = (player.currentPosition + deltaMs).coerceIn(0L, duration)
+        player.seekTo(target)
+        player.playWhenReady = false
+        player.pause()
+    }
+
+    fun switchToIndex(newIndex: Int) {
+        val oldPath = videos.getOrNull(currentIndex)?.path
+        currentIndex = newIndex.coerceIn(0, videos.lastIndex)
+        if (oldPath != null) {
+            scope.launch {
+                delay(350)
+                viewModel.moveFavoriteAfterRelease(oldPath)
+            }
+        }
     }
 
     Box(Modifier.fillMaxSize().background(Color.Black)) {
@@ -277,6 +292,8 @@ fun PlayerScreen(
         Box(
             modifier = Modifier
                 .fillMaxSize()
+                .navigationBarsPadding()
+                .padding(bottom = 92.dp)
                 .pointerInput(videos, currentIndex) {
                     detectTapGestures(
                         onTap = {
@@ -306,8 +323,8 @@ fun PlayerScreen(
                             }
                             if (videos.isNotEmpty()) {
                                 when {
-                                    totalDrag < -120f && currentIndex < videos.lastIndex -> currentIndex++
-                                    totalDrag > 120f && currentIndex > 0 -> currentIndex--
+                                    totalDrag < -120f && currentIndex < videos.lastIndex -> switchToIndex(currentIndex + 1)
+                                    totalDrag > 120f && currentIndex > 0 -> switchToIndex(currentIndex - 1)
                                 }
                             }
                         }

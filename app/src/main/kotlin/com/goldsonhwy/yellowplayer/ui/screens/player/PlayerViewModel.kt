@@ -67,4 +67,8 @@ class PlayerViewModel(application: Application) : AndroidViewModel(application) 
     suspend fun toggleFavorite(video: VideoInfo): VideoInfo? = withContext(Dispatchers.IO) {
         repository.toggleFavorite(video)
     }
+
+    suspend fun moveFavoriteAfterRelease(path: String): VideoInfo? = withContext(Dispatchers.IO) {
+        repository.moveFavoriteAfterRelease(path)
+    }
 }
