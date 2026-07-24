@@ -47,10 +47,11 @@ fun SambaConfigScreen(navController: NavController) {
         if (!isDiscovering) return@LaunchedEffect
         try {
             val client = com.goldsonhwy.yellowplayer.smb.SambaClient()
-            scanProgress = 0.05f
-            val result = client.discoverServers { current, total ->
-                scanProgress = current.toFloat() / total
-            }
+            scanProgress = 0.15f
+            // Do not mutate Compose state from SambaClient's IO-thread progress callback.
+            // Older builds updated scanProgress from Dispatchers.IO, which can crash Compose.
+            val result = client.discoverServers()
+            scanProgress = 1f
             result.onSuccess { hosts ->
                 discoveredHosts = hosts
                 if (hosts.isNotEmpty()) {

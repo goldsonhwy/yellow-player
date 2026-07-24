@@ -2,24 +2,31 @@ package com.goldsonhwy.yellowplayer.ui.screens.directory
 
 import android.app.Application
 import android.net.Uri
+import android.os.Environment
+import android.util.Log
 import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.viewModelScope
 import com.goldsonhwy.yellowplayer.data.model.VideoFolder
 import com.goldsonhwy.yellowplayer.data.model.VideoInfo
 import com.goldsonhwy.yellowplayer.data.model.VideoSource
 import com.goldsonhwy.yellowplayer.data.repository.VideoRepository
+import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
+import kotlinx.coroutines.withTimeoutOrNull
+
+private const val TAG = "DirectoryViewModel"
 
 data class DirectoryUiState(
     val folders: List<VideoFolder> = emptyList(),
     val videos: List<VideoInfo> = emptyList(),
     val isLoading: Boolean = false,
     val error: String? = null,
-    val isSingleFolder: Boolean = false, // true = show grid of videos; false = show folders
+    val isSingleFolder: Boolean = false,
     val currentFolderPath: String = ""
 )
 
@@ -30,71 +37,120 @@ class DirectoryViewModel(application: Application) : AndroidViewModel(applicatio
     private val _uiState = MutableStateFlow(DirectoryUiState())
     val uiState: StateFlow<DirectoryUiState> = _uiState.asStateFlow()
 
-    /**
-     * Load folders for a given source (root level for LOCAL / EXTERNAL).
-     */
     fun loadFolders(source: VideoSource) {
         viewModelScope.launch {
-            _uiState.value = _uiState.value.copy(isLoading = true, error = null)
-
-            when (source) {
-                VideoSource.LOCAL -> {
-                    val folders = repository.scanLocalFolders(VideoSource.LOCAL)
-                    _uiState.value = _uiState.value.copy(
-                        folders = folders,
-                        isLoading = false,
-                        isSingleFolder = false
-                    )
+            _uiState.value = DirectoryUiState(isLoading = true)
+            try {
+                when (source) {
+                    VideoSource.LOCAL -> loadLocalFoldersSafely()
+                    VideoSource.EXTERNAL -> {
+                        _uiState.value = DirectoryUiState(
+                            isLoading = false,
+                            error = "外置存储下一版接入系统文件夹选择器；当前请先使用本地存储或 Samba。"
+                        )
+                    }
+                    VideoSource.SAMBA -> {
+                        _uiState.value = DirectoryUiState(isLoading = false)
+                    }
                 }
-                VideoSource.EXTERNAL -> {
-                    // For external storage, we'd use SAF to pick a directory
-                    _uiState.value = _uiState.value.copy(
-                        isLoading = false,
-                        error = "外置存储请通过系统文件选择器选择目录"
-                    )
-                }
-                VideoSource.SAMBA -> {
-                    // Samba is handled separately via SambaConfigScreen
-                    _uiState.value = _uiState.value.copy(
-                        isLoading = false,
-                        folders = emptyList()
-                    )
-                }
+            } catch (e: CancellationException) {
+                throw e
+            } catch (t: Throwable) {
+                Log.e(TAG, "loadFolders crashed", t)
+                _uiState.value = DirectoryUiState(
+                    isLoading = false,
+                    error = "扫描失败，但应用已保护不闪退：${t.javaClass.simpleName}\n${t.message.orEmpty()}"
+                )
             }
         }
     }
 
-    /**
-     * Load videos inside a specific folder.
-     */
+    private suspend fun loadLocalFoldersSafely() {
+        val hasAllFilesAccess = android.os.Build.VERSION.SDK_INT < 30 || Environment.isExternalStorageManager()
+        if (!hasAllFilesAccess) {
+            _uiState.value = DirectoryUiState(
+                isLoading = false,
+                error = "还没有「所有文件访问权限」。请返回首页点击本地存储并完成授权。"
+            )
+            return
+        }
+
+        val folders = withTimeoutOrNull(30_000L) {
+            withContext(Dispatchers.IO) {
+                repository.scanLocalFolders(VideoSource.LOCAL)
+            }
+        }
+
+        if (folders == null) {
+            _uiState.value = DirectoryUiState(
+                isLoading = false,
+                error = "扫描超时：手机文件太多或部分目录访问很慢。下一步我会继续优化为分批扫描。"
+            )
+            return
+        }
+
+        _uiState.value = DirectoryUiState(
+            folders = folders,
+            isLoading = false,
+            isSingleFolder = false
+        )
+    }
+
     fun loadVideosInFolder(source: VideoSource, folderPath: String, serverId: Long = 0) {
         viewModelScope.launch {
-            _uiState.value = _uiState.value.copy(isLoading = true, error = null, currentFolderPath = folderPath)
-
-            when (source) {
-                VideoSource.LOCAL -> {
-                    val videos = repository.getVideosInLocalFolder(folderPath)
-                    _uiState.value = _uiState.value.copy(
-                        videos = videos,
-                        isLoading = false,
-                        isSingleFolder = true
-                    )
+            _uiState.value = DirectoryUiState(isLoading = true, currentFolderPath = folderPath)
+            try {
+                when (source) {
+                    VideoSource.LOCAL -> {
+                        val videos = withTimeoutOrNull(20_000L) {
+                            withContext(Dispatchers.IO) {
+                                repository.getVideosInLocalFolder(folderPath)
+                            }
+                        }
+                        if (videos == null) {
+                            _uiState.value = DirectoryUiState(
+                                isLoading = false,
+                                isSingleFolder = true,
+                                currentFolderPath = folderPath,
+                                error = "读取文件夹超时：${folderPath}"
+                            )
+                        } else {
+                            _uiState.value = DirectoryUiState(
+                                videos = videos,
+                                isLoading = false,
+                                isSingleFolder = true,
+                                currentFolderPath = folderPath
+                            )
+                        }
+                    }
+                    else -> {
+                        _uiState.value = DirectoryUiState(
+                            isLoading = false,
+                            currentFolderPath = folderPath,
+                            error = "暂不支持此来源的文件夹浏览"
+                        )
+                    }
                 }
-                else -> {
-                    _uiState.value = _uiState.value.copy(
-                        isLoading = false,
-                        error = "暂不支持此来源的文件夹浏览"
-                    )
-                }
+            } catch (e: CancellationException) {
+                throw e
+            } catch (t: Throwable) {
+                Log.e(TAG, "loadVideosInFolder crashed", t)
+                _uiState.value = DirectoryUiState(
+                    isLoading = false,
+                    isSingleFolder = true,
+                    currentFolderPath = folderPath,
+                    error = "读取失败，但应用已保护不闪退：${t.javaClass.simpleName}\n${t.message.orEmpty()}"
+                )
             }
         }
     }
 
     fun getThumbnailUri(videoPath: String): Uri? {
-        return repository.getThumbnailUri(videoPath)
-    }
-
-    override fun onCleared() {
-        super.onCleared()
+        return try {
+            repository.getThumbnailUri(videoPath)
+        } catch (t: Throwable) {
+            Log.w(TAG, "getThumbnailUri failed: $videoPath", t)
+            null
+        }
     }
 }

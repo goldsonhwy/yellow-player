@@ -211,8 +211,11 @@ fun DirectoryScreen(
                                         Routes.sambaBrowse(serverId, folder.path)
                                     )
                                 } else {
+                                    // Open the folder grid first. Older builds jumped directly
+                                    // to PlayerScreen with a folder path, which could crash or
+                                    // show mock videos instead of the real file list.
                                     navController.navigate(
-                                        Routes.player(source, folder.path, 0)
+                                        Routes.directory(source, folder.path)
                                     )
                                 }
                             }

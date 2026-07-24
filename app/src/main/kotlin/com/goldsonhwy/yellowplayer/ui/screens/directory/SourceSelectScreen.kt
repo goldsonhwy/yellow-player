@@ -202,7 +202,7 @@ fun SourceSelectScreen(navController: NavController) {
             )
 
             Text(
-                text = "v1.0.0",
+                text = "v0.0.6",
                 color = TextHint,
                 fontSize = 12.sp,
                 modifier = Modifier.align(Alignment.CenterHorizontally)
