@@ -23,18 +23,37 @@ object Routes {
     const val SAMBA_CONFIG = "samba_config"
     const val SAMBA_BROWSE = "samba_browse/{serverId}/{folderPath}"
 
+    private const val ROOT_PLACEHOLDER = "_root"
+
+    /** Build directory route. Encodes path to avoid slashes breaking Navigation Compose. */
     fun directory(source: VideoSource, folderPath: String = ""): String {
-        val encoded = URLEncoder.encode(folderPath, "UTF-8")
-        return "directory/${source.name}/$encoded"
+        val path = if (folderPath.isEmpty()) ROOT_PLACEHOLDER
+                   else URLEncoder.encode(folderPath, "UTF-8")
+        return "directory/${source.name}/$path"
     }
 
+    /** Build player route. */
     fun player(source: VideoSource, folderPath: String, startIndex: Int): String {
-        val encoded = URLEncoder.encode(folderPath, "UTF-8")
-        return "player/${source.name}/$encoded/$startIndex"
+        val path = if (folderPath.isEmpty()) ROOT_PLACEHOLDER
+                   else URLEncoder.encode(folderPath, "UTF-8")
+        return "player/${source.name}/$path/$startIndex"
     }
 
+    /** Build Samba browse route. */
     fun sambaBrowse(serverId: Long, folderPath: String = ""): String {
-        return "samba_browse/$serverId/$folderPath"
+        val path = if (folderPath.isEmpty()) ROOT_PLACEHOLDER
+                   else URLEncoder.encode(folderPath, "UTF-8")
+        return "samba_browse/$serverId/$path"
+    }
+
+    /** Decode a raw route path back to the actual folder path. */
+    fun resolveFolderPath(raw: String): String {
+        if (raw == ROOT_PLACEHOLDER || raw.isEmpty()) return ""
+        return try {
+            URLDecoder.decode(raw, "UTF-8")
+        } catch (_: Exception) {
+            raw
+        }
     }
 }
 
@@ -55,11 +74,14 @@ fun AppNavGraph(navController: NavHostController) {
                 navArgument("folderPath") { type = NavType.StringType }
             )
         ) { backStackEntry ->
-            val source = VideoSource.valueOf(backStackEntry.arguments?.getString("source") ?: "LOCAL")
-            val folderPath = URLDecoder.decode(
-                backStackEntry.arguments?.getString("folderPath") ?: "",
-                "UTF-8"
+            val source = try {
+                VideoSource.valueOf(backStackEntry.arguments?.getString("source") ?: "LOCAL")
+            } catch (_: Exception) { VideoSource.LOCAL }
+
+            val folderPath = Routes.resolveFolderPath(
+                backStackEntry.arguments?.getString("folderPath") ?: ""
             )
+
             DirectoryScreen(
                 navController = navController,
                 source = source,
@@ -75,12 +97,15 @@ fun AppNavGraph(navController: NavHostController) {
                 navArgument("startIndex") { type = NavType.IntType }
             )
         ) { backStackEntry ->
-            val source = VideoSource.valueOf(backStackEntry.arguments?.getString("source") ?: "LOCAL")
-            val folderPath = URLDecoder.decode(
-                backStackEntry.arguments?.getString("folderPath") ?: "",
-                "UTF-8"
+            val source = try {
+                VideoSource.valueOf(backStackEntry.arguments?.getString("source") ?: "LOCAL")
+            } catch (_: Exception) { VideoSource.LOCAL }
+
+            val folderPath = Routes.resolveFolderPath(
+                backStackEntry.arguments?.getString("folderPath") ?: ""
             )
             val startIndex = backStackEntry.arguments?.getInt("startIndex") ?: 0
+
             PlayerScreen(
                 navController = navController,
                 source = source,
@@ -105,10 +130,10 @@ fun AppNavGraph(navController: NavHostController) {
             )
         ) { backStackEntry ->
             val serverId = backStackEntry.arguments?.getLong("serverId") ?: 0L
-            val folderPath = URLDecoder.decode(
-                backStackEntry.arguments?.getString("folderPath") ?: "",
-                "UTF-8"
+            val folderPath = Routes.resolveFolderPath(
+                backStackEntry.arguments?.getString("folderPath") ?: ""
             )
+
             DirectoryScreen(
                 navController = navController,
                 source = VideoSource.SAMBA,

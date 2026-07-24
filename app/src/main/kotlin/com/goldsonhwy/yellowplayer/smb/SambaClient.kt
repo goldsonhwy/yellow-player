@@ -13,9 +13,16 @@ import jcifs.smb.NtlmPasswordAuthenticator
 import jcifs.smb.SmbFile
 import jcifs.smb.SmbFileInputStream
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.async
+import kotlinx.coroutines.coroutineScope
 import kotlinx.coroutines.withContext
 import java.io.File
 import java.io.FileOutputStream
+import java.net.Inet4Address
+import java.net.InetAddress
+import java.net.InetSocketAddress
+import java.net.NetworkInterface
+import java.net.Socket
 import java.util.Properties
 
 /**
@@ -184,5 +191,75 @@ class SambaClient {
             val ext = name.substringAfterLast('.', "").lowercase()
             return ext in VIDEO_EXTENSIONS
         }
+    }
+
+    // ─── LAN Auto-Discovery ─────────────────────────────────
+
+    /**
+     * Scan the local subnet for SMB servers on port 445.
+     * Returns a list of discovered host IPs.
+     */
+    suspend fun discoverServers(onProgress: (Int, Int) -> Unit = { _, _ -> }): Result<List<String>> =
+        withContext(Dispatchers.IO) {
+            try {
+                val localIp = getLocalIpV4() ?: return@withContext Result.success(emptyList())
+                val prefix = localIp.substringBeforeLast('.')
+                val myLastOctet = localIp.substringAfterLast('.').toIntOrNull() ?: return@withContext Result.success(emptyList())
+
+                val discovered = mutableListOf<String>()
+                val candidates = (1..254).toList()
+
+                // Scan in parallel batches of 20
+                coroutineScope {
+                    candidates.chunked(20).forEachIndexed { batchIndex, batch ->
+                        val results = batch.map { octet ->
+                            async {
+                                if (octet == myLastOctet) return@async null
+                                val host = "$prefix.$octet"
+                                try {
+                                    val sock = Socket()
+                                    sock.connect(InetSocketAddress(host, 445), 500)
+                                    sock.close()
+                                    host
+                                } catch (_: Exception) {
+                                    null
+                                }
+                            }
+                        }
+                        results.forEach { deferred ->
+                            val result = deferred.await()
+                            if (result != null) {
+                                discovered.add(result)
+                            }
+                        }
+                        onProgress(batchIndex + 1, (candidates.size + 19) / 20)
+                    }
+                }
+
+                Result.success(discovered.distinct())
+            } catch (e: Exception) {
+                Result.failure(e)
+            }
+        }
+
+    /**
+     * Get the device's local IPv4 address on the WiFi/LAN interface.
+     */
+    private fun getLocalIpV4(): String? {
+        try {
+            NetworkInterface.getNetworkInterfaces()?.asSequence()?.forEach { networkInterface ->
+                if (networkInterface.isLoopback || !networkInterface.isUp) return@forEach
+                networkInterface.inetAddresses?.asSequence()?.forEach { addr ->
+                    if (addr is Inet4Address && !addr.isLoopbackAddress) {
+                        val ip = addr.hostAddress ?: return@forEach
+                        // Skip common non-LAN ranges
+                        if (ip.startsWith("192.168.") || ip.startsWith("10.") || ip.startsWith("172.")) {
+                            return ip
+                        }
+                    }
+                }
+            }
+        } catch (_: Exception) { }
+        return null
     }
 }

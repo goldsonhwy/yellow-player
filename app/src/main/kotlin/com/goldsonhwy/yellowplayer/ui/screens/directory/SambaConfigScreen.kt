@@ -5,7 +5,14 @@ import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.*
+import androidx.compose.material.icons.filled.Add
+import androidx.compose.material.icons.filled.ArrowBack
+import androidx.compose.material.icons.filled.ChevronRight
+import androidx.compose.material.icons.filled.Delete
+import androidx.compose.material.icons.filled.Dns
+import androidx.compose.material.icons.filled.Edit
+import androidx.compose.material.icons.filled.Lan
+import androidx.compose.material.icons.filled.Search
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
@@ -28,6 +35,9 @@ fun SambaConfigScreen(navController: NavController) {
     var servers by remember { mutableStateOf(listOf<SambaServer>()) }
     var showAddDialog by remember { mutableStateOf(false) }
     var editingServer by remember { mutableStateOf<SambaServer?>(null) }
+    var isDiscovering by remember { mutableStateOf(false) }
+    var discoveredHosts by remember { mutableStateOf<List<String>>(emptyList()) }
+    var showDiscoveredDialog by remember { mutableStateOf(false) }
 
     Scaffold(
         topBar = {
@@ -48,46 +58,112 @@ fun SambaConfigScreen(navController: NavController) {
         },
         containerColor = DarkBackground
     ) { padding ->
-        if (servers.isEmpty()) {
-            // Empty state
-            Box(
-                modifier = Modifier
-                    .fillMaxSize()
-                    .padding(padding),
-                contentAlignment = Alignment.Center
+        Column(
+            modifier = Modifier
+                .fillMaxSize()
+                .padding(padding)
+                .padding(16.dp)
+        ) {
+            // Auto-discover button
+            Card(
+                onClick = {
+                    isDiscovering = true
+                    // TODO: call SambaClient.discoverServers()
+                },
+                colors = CardDefaults.cardColors(containerColor = DarkSurfaceVariant),
+                shape = MaterialTheme.shapes.medium
             ) {
-                Column(horizontalAlignment = Alignment.CenterHorizontally) {
-                    Icon(
-                        Icons.Default.Lan,
-                        contentDescription = null,
-                        tint = TextHint,
-                        modifier = Modifier.size(64.dp)
-                    )
-                    Spacer(Modifier.height(16.dp))
-                    Text("没有已保存的服务器", color = TextSecondary, fontSize = 16.sp)
-                    Text("点击右上角 + 添加", color = TextHint, fontSize = 14.sp)
+                Row(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(16.dp),
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.spacedBy(12.dp)
+                ) {
+                    if (isDiscovering) {
+                        CircularProgressIndicator(
+                            modifier = Modifier.size(24.dp),
+                            color = Yellow500,
+                            strokeWidth = 2.dp
+                        )
+                    } else {
+                        Icon(
+                            Icons.Default.Search,
+                            contentDescription = null,
+                            tint = Yellow500,
+                            modifier = Modifier.size(24.dp)
+                        )
+                    }
+                    Column(modifier = Modifier.weight(1f)) {
+                        Text(
+                            text = if (isDiscovering) "正在搜索局域网设备…" else "自动搜索局域网设备",
+                            color = TextPrimary,
+                            fontSize = 15.sp
+                        )
+                        if (!isDiscovering && discoveredHosts.isNotEmpty()) {
+                            Text(
+                                text = "发现 ${discoveredHosts.size} 台设备",
+                                color = Yellow500,
+                                fontSize = 13.sp
+                            )
+                        }
+                    }
+                    if (!isDiscovering) {
+                        Icon(
+                            Icons.Default.ChevronRight,
+                            contentDescription = null,
+                            tint = TextHint,
+                            modifier = Modifier.size(20.dp)
+                        )
+                    }
                 }
             }
-        } else {
-            LazyColumn(
-                modifier = Modifier
-                    .fillMaxSize()
-                    .padding(padding)
-                    .padding(horizontal = 16.dp),
-                verticalArrangement = Arrangement.spacedBy(12.dp),
-                contentPadding = PaddingValues(vertical = 16.dp)
-            ) {
-                items(servers, key = { it.host + it.shareName }) { server ->
-                    SambaServerCard(
-                        server = server,
-                        onClick = {
-                            navController.navigate(
-                                "samba_browse/${server.id}/"
-                            )
-                        },
-                        onEdit = { editingServer = it },
-                        onDelete = { /* TODO */ }
-                    )
+
+            if (isDiscovering) {
+                Spacer(Modifier.height(16.dp))
+                LinearProgressIndicator(
+                    modifier = Modifier.fillMaxWidth().height(2.dp),
+                    color = Yellow500,
+                    trackColor = DarkSurfaceVariant,
+                )
+            }
+
+            Spacer(Modifier.height(16.dp))
+
+            // Server list
+            if (servers.isEmpty() && !isDiscovering) {
+                Box(
+                    modifier = Modifier.fillMaxSize(),
+                    contentAlignment = Alignment.Center
+                ) {
+                    Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                        Icon(
+                            Icons.Default.Lan,
+                            contentDescription = null,
+                            tint = TextHint,
+                            modifier = Modifier.size(64.dp)
+                        )
+                        Spacer(Modifier.height(16.dp))
+                        Text("没有已保存的服务器", color = TextSecondary, fontSize = 16.sp)
+                        Text("点击上方搜索或右上角 + 添加", color = TextHint, fontSize = 14.sp)
+                    }
+                }
+            } else {
+                LazyColumn(
+                    verticalArrangement = Arrangement.spacedBy(12.dp)
+                ) {
+                    items(servers, key = { it.host + it.shareName }) { server ->
+                        SambaServerCard(
+                            server = server,
+                            onClick = {
+                                navController.navigate(
+                                    "samba_browse/${server.id}/"
+                                )
+                            },
+                            onEdit = { editingServer = it },
+                            onDelete = { /* TODO */ }
+                        )
+                    }
                 }
             }
         }
