@@ -15,12 +15,15 @@ import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import androidx.lifecycle.viewmodel.compose.viewModel
 import androidx.navigation.NavController
 import coil.compose.AsyncImage
 import coil.request.ImageRequest
@@ -31,7 +34,8 @@ import com.goldsonhwy.yellowplayer.ui.navigation.Routes
 import com.goldsonhwy.yellowplayer.ui.theme.*
 
 /**
- * Directory grid screen — 3-column thumbnail grid showing video folders or files.
+ * Directory screen — shows a 3-column grid of video folders or files.
+ * Uses ViewModel with real VideoScanner for local storage.
  */
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -39,18 +43,33 @@ fun DirectoryScreen(
     navController: NavController,
     source: VideoSource,
     serverId: Long = 0,
-    folderPath: String = ""
+    folderPath: String = "",
+    viewModel: DirectoryViewModel = viewModel()
 ) {
     val context = LocalContext.current
+    val uiState by viewModel.uiState.collectAsState()
     val gridState = rememberLazyGridState()
 
-    // Mock data for structure demonstration
     val isFavorites = folderPath == "__favorites__"
+    val isRootLevel = folderPath.isEmpty()
+
+    // Load data on first composition
+    LaunchedEffect(source, folderPath) {
+        when {
+            isFavorites -> { /* Load favorites from Room */ }
+            isRootLevel -> viewModel.loadFolders(source)
+            else -> viewModel.loadVideosInFolder(source, folderPath, serverId)
+        }
+    }
+
     val title = when {
         isFavorites -> "收藏"
-        folderPath.isNotEmpty() -> folderPath.substringAfterLast("/")
-            .ifEmpty { "视频" }
-        else -> "视频"
+        isRootLevel -> when (source) {
+            VideoSource.LOCAL -> "本地存储"
+            VideoSource.EXTERNAL -> "外置存储"
+            VideoSource.SAMBA -> "Samba"
+        }
+        else -> folderPath.substringAfterLast("/").ifEmpty { "视频" }
     }
 
     Scaffold(
@@ -72,8 +91,7 @@ fun DirectoryScreen(
                 },
                 colors = TopAppBarDefaults.topAppBarColors(containerColor = DarkBackground),
                 actions = {
-                    // Sort button
-                    IconButton(onClick = { /* TODO: sort dialog */ }) {
+                    IconButton(onClick = { /* TODO: sort options */ }) {
                         Icon(Icons.Default.Sort, "排序", tint = TextSecondary)
                     }
                 }
@@ -81,62 +99,152 @@ fun DirectoryScreen(
         },
         containerColor = DarkBackground
     ) { padding ->
-        if (isFavorites) {
-            // Favorites empty state
-            Box(
-                modifier = Modifier
-                    .fillMaxSize()
-                    .padding(padding),
-                contentAlignment = Alignment.Center
-            ) {
-                Column(horizontalAlignment = Alignment.CenterHorizontally) {
-                    Icon(
-                        Icons.Default.FavoriteBorder,
-                        contentDescription = null,
-                        tint = LikeRed,
-                        modifier = Modifier.size(64.dp)
-                    )
-                    Spacer(Modifier.height(16.dp))
-                    Text("还没有收藏视频", color = TextSecondary, fontSize = 16.sp)
-                    Text("在全屏播放时双击 ❤️ 即可收藏", color = TextHint, fontSize = 14.sp)
+        when {
+            // Loading state
+            uiState.isLoading -> {
+                Box(
+                    modifier = Modifier
+                        .fillMaxSize()
+                        .padding(padding),
+                    contentAlignment = Alignment.Center
+                ) {
+                    Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                        CircularProgressIndicator(
+                            color = Yellow500,
+                            strokeWidth = 3.dp
+                        )
+                        Spacer(Modifier.height(12.dp))
+                        Text("正在扫描视频…", color = TextSecondary, fontSize = 14.sp)
+                    }
                 }
             }
-        } else {
-            // 3-column grid of video folders/files
-            LazyVerticalGrid(
-                columns = GridCells.Fixed(3),
-                modifier = Modifier
-                    .fillMaxSize()
-                    .padding(padding)
-                    .padding(horizontal = 4.dp),
-                state = gridState,
-                horizontalArrangement = Arrangement.spacedBy(4.dp),
-                verticalArrangement = Arrangement.spacedBy(4.dp),
-                contentPadding = PaddingValues(vertical = 4.dp)
-            ) {
-                // Mock folders for structure demo
-                val mockFolders = listOf(
-                    VideoFolder("DCIM/Camera", "Camera", 12, "", source, serverId),
-                    VideoFolder("Movies", "Movies", 5, "", source, serverId),
-                    VideoFolder("Download", "Download", 8, "", source, serverId),
-                    VideoFolder("WhatsApp/Video", "WhatsApp Video", 23, "", source, serverId),
-                    VideoFolder("Telegram", "Telegram", 15, "", source, serverId),
-                    VideoFolder("screen_record", "录屏", 3, "", source, serverId),
-                    VideoFolder("weixin", "微信", 9, "", source, serverId),
-                    VideoFolder("douyin", "抖音", 7, "", source, serverId),
-                    VideoFolder("bilibili", "Bilibili", 4, "", source, serverId),
-                )
 
-                items(mockFolders, key = { it.path }) { folder ->
-                    VideoFolderCard(
-                        folder = folder,
-                        onClick = {
-                            // Navigate to player with this folder's videos
-                            navController.navigate(
-                                Routes.player(source, folder.path, 0)
-                            )
-                        }
-                    )
+            // Error state
+            uiState.error != null -> {
+                Box(
+                    modifier = Modifier
+                        .fillMaxSize()
+                        .padding(padding),
+                    contentAlignment = Alignment.Center
+                ) {
+                    Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                        Icon(
+                            Icons.Default.ErrorOutline,
+                            contentDescription = null,
+                            tint = LikeRed,
+                            modifier = Modifier.size(48.dp)
+                        )
+                        Spacer(Modifier.height(12.dp))
+                        Text(
+                            text = uiState.error ?: "未知错误",
+                            color = TextSecondary,
+                            fontSize = 14.sp,
+                            textAlign = TextAlign.Center
+                        )
+                    }
+                }
+            }
+
+            // Favorites — empty state
+            isFavorites -> {
+                Box(
+                    modifier = Modifier
+                        .fillMaxSize()
+                        .padding(padding),
+                    contentAlignment = Alignment.Center
+                ) {
+                    Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                        Icon(
+                            Icons.Default.FavoriteBorder,
+                            contentDescription = null,
+                            tint = LikeRed,
+                            modifier = Modifier.size(64.dp)
+                        )
+                        Spacer(Modifier.height(16.dp))
+                        Text("还没有收藏视频", color = TextSecondary, fontSize = 16.sp)
+                        Text("在全屏播放时双击 ❤️ 即可收藏", color = TextHint, fontSize = 14.sp)
+                    }
+                }
+            }
+
+            // Empty state
+            uiState.folders.isEmpty() && uiState.videos.isEmpty() -> {
+                Box(
+                    modifier = Modifier
+                        .fillMaxSize()
+                        .padding(padding),
+                    contentAlignment = Alignment.Center
+                ) {
+                    Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                        Icon(
+                            Icons.Default.VideoLibrary,
+                            contentDescription = null,
+                            tint = TextHint,
+                            modifier = Modifier.size(64.dp)
+                        )
+                        Spacer(Modifier.height(16.dp))
+                        Text("没有找到视频文件", color = TextSecondary, fontSize = 16.sp)
+                        Text("支持 mp4, mkv, avi, mov, flv, webm 等格式", color = TextHint, fontSize = 13.sp)
+                    }
+                }
+            }
+
+            // Folder grid (root level)
+            !uiState.isSingleFolder && uiState.folders.isNotEmpty() -> {
+                LazyVerticalGrid(
+                    columns = GridCells.Fixed(3),
+                    modifier = Modifier
+                        .fillMaxSize()
+                        .padding(padding)
+                        .padding(horizontal = 4.dp),
+                    state = gridState,
+                    horizontalArrangement = Arrangement.spacedBy(4.dp),
+                    verticalArrangement = Arrangement.spacedBy(4.dp),
+                    contentPadding = PaddingValues(vertical = 4.dp)
+                ) {
+                    items(uiState.folders, key = { it.path }) { folder ->
+                        VideoFolderCard(
+                            folder = folder,
+                            onClick = {
+                                if (source == VideoSource.SAMBA) {
+                                    navController.navigate(
+                                        Routes.sambaBrowse(serverId, folder.path)
+                                    )
+                                } else {
+                                    navController.navigate(
+                                        Routes.player(source, folder.path, 0)
+                                    )
+                                }
+                            }
+                        )
+                    }
+                }
+            }
+
+            // Video grid (inside a folder)
+            uiState.isSingleFolder && uiState.videos.isNotEmpty() -> {
+                LazyVerticalGrid(
+                    columns = GridCells.Fixed(3),
+                    modifier = Modifier
+                        .fillMaxSize()
+                        .padding(padding)
+                        .padding(horizontal = 4.dp),
+                    state = gridState,
+                    horizontalArrangement = Arrangement.spacedBy(4.dp),
+                    verticalArrangement = Arrangement.spacedBy(4.dp),
+                    contentPadding = PaddingValues(vertical = 4.dp)
+                ) {
+                    items(uiState.videos, key = { it.path }) { video ->
+                        VideoThumbnailCard(
+                            video = video,
+                            onClick = {
+                                val idx = uiState.videos.indexOf(video)
+                                navController.navigate(
+                                    Routes.player(source, uiState.currentFolderPath, idx)
+                                )
+                            }
+                        )
+                    }
                 }
             }
         }
@@ -155,7 +263,6 @@ private fun VideoFolderCard(
             .clickable(onClick = onClick)
             .background(DarkSurfaceVariant)
     ) {
-        // Thumbnail area
         Box(
             modifier = Modifier
                 .fillMaxWidth()
@@ -165,41 +272,39 @@ private fun VideoFolderCard(
             if (folder.thumbnailPath.isNotEmpty()) {
                 AsyncImage(
                     model = ImageRequest.Builder(LocalContext.current)
-                        .data(Uri.parse(folder.thumbnailPath))
+                        .data(Uri.fromFile(java.io.File(folder.thumbnailPath)))
                         .crossfade(true)
+                        .size(180)
                         .build(),
                     contentDescription = folder.name,
                     contentScale = ContentScale.Crop,
                     modifier = Modifier.fillMaxSize()
                 )
             } else {
-                // Placeholder icon
                 Icon(
-                    Icons.Default.PlayCircleOutline,
+                    Icons.Default.FolderOpen,
                     contentDescription = null,
-                    tint = TextHint,
+                    tint = Yellow500.copy(alpha = 0.6f),
                     modifier = Modifier.size(36.dp)
                 )
             }
 
-            // Video count badge
             Surface(
                 modifier = Modifier
                     .align(Alignment.BottomEnd)
                     .padding(4.dp),
                 shape = MaterialTheme.shapes.extraSmall,
-                color = Black.copy(alpha = 0.7f)
+                color = Color.Black.copy(alpha = 0.7f)
             ) {
                 Text(
                     text = "${folder.videoCount}",
-                    color = White,
+                    color = Color.White,
                     fontSize = 11.sp,
                     modifier = Modifier.padding(horizontal = 4.dp, vertical = 1.dp)
                 )
             }
         }
 
-        // Folder name
         Text(
             text = folder.name,
             color = TextPrimary,
@@ -209,4 +314,71 @@ private fun VideoFolderCard(
             modifier = Modifier.padding(horizontal = 6.dp, vertical = 4.dp)
         )
     }
+}
+
+@Composable
+private fun VideoThumbnailCard(
+    video: VideoInfo,
+    onClick: () -> Unit
+) {
+    Column(
+        modifier = Modifier
+            .aspectRatio(0.75f)
+            .clip(MaterialTheme.shapes.small)
+            .clickable(onClick = onClick)
+            .background(DarkSurfaceVariant)
+    ) {
+        Box(
+            modifier = Modifier
+                .fillMaxWidth()
+                .weight(1f),
+            contentAlignment = Alignment.Center
+        ) {
+            // Load thumbnail from real video file
+            AsyncImage(
+                model = ImageRequest.Builder(LocalContext.current)
+                    .data(video.fileUri)
+                    .crossfade(true)
+                    .size(180)
+                    .build(),
+                contentDescription = video.name,
+                contentScale = ContentScale.Crop,
+                modifier = Modifier.fillMaxSize()
+            )
+
+            // Duration badge
+            if (video.duration > 0) {
+                Surface(
+                    modifier = Modifier
+                        .align(Alignment.BottomEnd)
+                        .padding(4.dp),
+                    shape = MaterialTheme.shapes.extraSmall,
+                    color = Color.Black.copy(alpha = 0.7f)
+                ) {
+                    Text(
+                        text = formatDuration(video.duration),
+                        color = Color.White,
+                        fontSize = 10.sp,
+                        modifier = Modifier.padding(horizontal = 4.dp, vertical = 1.dp)
+                    )
+                }
+            }
+        }
+
+        Text(
+            text = video.name,
+            color = TextPrimary,
+            fontSize = 11.sp,
+            maxLines = 1,
+            overflow = TextOverflow.Ellipsis,
+            modifier = Modifier.padding(horizontal = 6.dp, vertical = 4.dp)
+        )
+    }
+}
+
+private fun formatDuration(millis: Long): String {
+    val totalSec = millis / 1000
+    val min = totalSec / 60
+    val sec = totalSec % 60
+    return "%d:%02d".format(min, sec)
 }
