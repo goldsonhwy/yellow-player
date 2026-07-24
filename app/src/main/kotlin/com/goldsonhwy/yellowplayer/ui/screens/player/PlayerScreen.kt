@@ -35,6 +35,7 @@ import androidx.navigation.NavController
 import com.goldsonhwy.yellowplayer.data.model.VideoSource
 import com.goldsonhwy.yellowplayer.ui.theme.*
 import kotlinx.coroutines.delay
+import kotlinx.coroutines.launch
 import java.io.File
 
 @Composable
@@ -46,6 +47,7 @@ fun PlayerScreen(
     viewModel: PlayerViewModel = viewModel()
 ) {
     val context = LocalContext.current
+    val scope = rememberCoroutineScope()
     val uiState by viewModel.uiState.collectAsState()
 
     var deletedPaths by remember { mutableStateOf(setOf<String>()) }
@@ -101,6 +103,20 @@ fun PlayerScreen(
 
     DisposableEffect(Unit) {
         onDispose { player.release() }
+    }
+
+    LaunchedEffect(videos.getOrNull(currentIndex)?.path) {
+        val video = videos.getOrNull(currentIndex)
+        isFavorite = if (video != null) viewModel.isFavorite(video.path) else false
+    }
+
+    fun toggleCurrentFavorite(showAnimation: Boolean = true) {
+        val video = videos.getOrNull(currentIndex) ?: return
+        scope.launch {
+            val result = viewModel.toggleFavorite(video)
+            isFavorite = result != null
+            if (showAnimation && isFavorite) showLikeAnimation = true
+        }
     }
 
     fun shareCurrentVideo() {
@@ -230,10 +246,7 @@ fun PlayerScreen(
                 }
 
                 IconButton(
-                    onClick = {
-                        isFavorite = !isFavorite
-                        showLikeAnimation = true
-                    },
+                    onClick = { toggleCurrentFavorite(showAnimation = true) },
                     modifier = Modifier.weight(1f)
                 ) {
                     Icon(
@@ -270,8 +283,7 @@ fun PlayerScreen(
                             if (player.isPlaying) player.pause() else player.play()
                         },
                         onDoubleTap = {
-                            isFavorite = !isFavorite
-                            showLikeAnimation = true
+                            toggleCurrentFavorite(showAnimation = true)
                         },
                         onLongPress = {
                             currentSpeed = longPressSpeed

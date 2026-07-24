@@ -125,8 +125,16 @@ class DirectoryViewModel(application: Application) : AndroidViewModel(applicatio
         viewModelScope.launch {
             _uiState.value = DirectoryUiState(isLoading = true, currentFolderPath = folderPath)
             try {
-                when (source) {
-                    VideoSource.LOCAL -> {
+                when {
+                    source == VideoSource.LOCAL && folderPath == "__favorites__" -> {
+                        _uiState.value = DirectoryUiState(
+                            videos = repository.getFavoriteVideos(),
+                            isLoading = false,
+                            isSingleFolder = true,
+                            currentFolderPath = folderPath
+                        )
+                    }
+                    source == VideoSource.LOCAL -> {
                         val videos = withTimeoutOrNull(20_000L) {
                             withContext(Dispatchers.IO) {
                                 repository.getVideosInLocalFolder(folderPath)
@@ -148,7 +156,7 @@ class DirectoryViewModel(application: Application) : AndroidViewModel(applicatio
                             )
                         }
                     }
-                    VideoSource.SAMBA -> {
+                    source == VideoSource.SAMBA -> {
                         val result = withContext(Dispatchers.IO) {
                             repository.listSambaVideosById(serverId, folderPath)
                         }

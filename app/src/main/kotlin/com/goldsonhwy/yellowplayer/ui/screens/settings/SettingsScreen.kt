@@ -1,7 +1,12 @@
 package com.goldsonhwy.yellowplayer.ui.screens.settings
 
 import android.content.Intent
+import android.net.Uri
+import android.os.Environment
+import android.provider.DocumentsContract
 import android.widget.Toast
+import androidx.activity.compose.rememberLauncherForActivityResult
+import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
@@ -28,6 +33,22 @@ fun SettingsScreen(navController: NavController) {
     var showSpeedDialog by remember { mutableStateOf(false) }
     var showSortDialog by remember { mutableStateOf(false) }
     var currentSort by remember { mutableStateOf("name") }
+    var favoriteDir by remember {
+        mutableStateOf(context.getSharedPreferences("favorite_move", android.content.Context.MODE_PRIVATE).getString("dir", "").orEmpty())
+    }
+
+    val favoriteDirPicker = rememberLauncherForActivityResult(ActivityResultContracts.OpenDocumentTree()) { uri ->
+        if (uri != null) {
+            val path = treeUriToPrimaryPath(uri)
+            if (path != null) {
+                favoriteDir = path
+                context.getSharedPreferences("favorite_move", android.content.Context.MODE_PRIVATE)
+                    .edit().putString("dir", path).apply()
+            } else {
+                Toast.makeText(context, "当前只支持内部存储目录", Toast.LENGTH_SHORT).show()
+            }
+        }
+    }
 
     fun exportDebugLog() {
         try {
@@ -41,7 +62,7 @@ fun SettingsScreen(navController: NavController) {
                 type = "application/zip"
                 putExtra(Intent.EXTRA_STREAM, uri)
                 putExtra(Intent.EXTRA_SUBJECT, "Yellow Player 调试日志")
-                putExtra(Intent.EXTRA_TEXT, "Yellow Player v0.0.13 调试日志/崩溃日志")
+                putExtra(Intent.EXTRA_TEXT, "Yellow Player v0.0.14 调试日志/崩溃日志")
                 addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)
             }
             context.startActivity(Intent.createChooser(intent, "导出调试日志"))
@@ -120,6 +141,15 @@ fun SettingsScreen(navController: NavController) {
 
             Divider(color = DarkSurfaceVariant, modifier = Modifier.padding(vertical = 4.dp))
 
+            SettingsItem(
+                icon = Icons.Default.Folder,
+                title = "收藏移动目录",
+                subtitle = favoriteDir.ifEmpty { "未设置：收藏只记录，不移动文件" },
+                onClick = { favoriteDirPicker.launch(null) }
+            )
+
+            Divider(color = DarkSurfaceVariant, modifier = Modifier.padding(vertical = 4.dp))
+
             SectionHeader("调试")
 
             SettingsItem(
@@ -136,7 +166,7 @@ fun SettingsScreen(navController: NavController) {
             SettingsItem(
                 icon = Icons.Default.Info,
                 title = "版本",
-                subtitle = "0.0.13",
+                subtitle = "0.0.14",
                 onClick = {}
             )
 
@@ -331,4 +361,15 @@ private fun SortDialog(
             }
         }
     )
+}
+
+private fun treeUriToPrimaryPath(uri: Uri): String? {
+    return try {
+        val treeId = DocumentsContract.getTreeDocumentId(uri)
+        if (treeId == "primary:") return Environment.getExternalStorageDirectory().absolutePath
+        if (treeId.startsWith("primary:")) {
+            val rel = treeId.removePrefix("primary:")
+            Environment.getExternalStorageDirectory().absolutePath + "/" + rel
+        } else null
+    } catch (_: Exception) { null }
 }

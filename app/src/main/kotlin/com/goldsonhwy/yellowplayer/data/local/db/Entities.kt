@@ -7,11 +7,14 @@ import com.goldsonhwy.yellowplayer.data.model.VideoSource
 @Entity(tableName = "favorites")
 data class FavoriteEntity(
     @PrimaryKey
-    val path: String,
+    val originalPath: String,
+    val currentPath: String,
     val name: String,
-    val folderPath: String,
+    val originalFolderPath: String,
+    val currentFolderPath: String,
     val source: VideoSource,
     val serverId: Long = 0,
+    val movedToFavoriteDir: Boolean = false,
     val timestamp: Long = System.currentTimeMillis()
 )
 

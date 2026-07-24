@@ -152,19 +152,76 @@ class VideoRepository(private val context: Context) {
         return favoriteDao.isFavorite(path) > 0
     }
 
-    suspend fun toggleFavorite(video: VideoInfo) {
-        if (favoriteDao.isFavorite(video.path) > 0) {
+    suspend fun getFavoriteVideos(): List<VideoInfo> = withContext(Dispatchers.IO) {
+        favoriteDao.getAllFavoritesOnce().map { fav ->
+            VideoInfo(
+                name = fav.name,
+                path = fav.currentPath,
+                uri = Uri.fromFile(File(fav.currentPath)).toString(),
+                folderPath = fav.currentFolderPath,
+                source = fav.source,
+                serverId = fav.serverId
+            )
+        }.filter { File(it.path).exists() }
+    }
+
+    suspend fun toggleFavorite(video: VideoInfo): VideoInfo? = withContext(Dispatchers.IO) {
+        val existing = favoriteDao.getFavoriteByAnyPath(video.path)
+        if (existing != null) {
+            // Unfavorite: move back if this app moved it into the favorite directory.
+            if (existing.movedToFavoriteDir) {
+                runCatching {
+                    val current = File(existing.currentPath)
+                    val original = File(existing.originalPath)
+                    original.parentFile?.mkdirs()
+                    if (current.exists()) current.renameTo(original)
+                }
+            }
             favoriteDao.removeFavoriteByPath(video.path)
+            null
         } else {
+            val original = File(video.path)
+            val favoriteRoot = context.getSharedPreferences("favorite_move", Context.MODE_PRIVATE)
+                .getString("dir", "")
+                .orEmpty()
+            val savedRoots = context.getSharedPreferences("local_video_folders", Context.MODE_PRIVATE)
+                .getStringSet("paths", emptySet())
+                .orEmpty()
+            var currentPath = video.path
+            var currentFolder = video.folderPath
+            var moved = false
+
+            if (favoriteRoot.isNotBlank() && original.exists() && video.source == VideoSource.LOCAL) {
+                val base = savedRoots.firstOrNull { video.path.startsWith(it.trimEnd('/') + "/") }
+                    ?: original.parentFile?.absolutePath.orEmpty()
+                val rel = if (base.isNotBlank()) video.path.removePrefix(base).trimStart('/') else original.name
+                val target = File(favoriteRoot, rel)
+                target.parentFile?.mkdirs()
+                if (original.renameTo(target)) {
+                    currentPath = target.absolutePath
+                    currentFolder = target.parentFile?.absolutePath.orEmpty()
+                    moved = true
+                }
+            }
+
+            val savedVideo = video.copy(
+                path = currentPath,
+                uri = Uri.fromFile(File(currentPath)).toString(),
+                folderPath = currentFolder
+            )
             favoriteDao.addFavorite(
                 FavoriteEntity(
-                    path = video.path,
+                    originalPath = video.path,
+                    currentPath = currentPath,
                     name = video.name,
-                    folderPath = video.folderPath,
+                    originalFolderPath = video.folderPath,
+                    currentFolderPath = currentFolder,
                     source = video.source,
-                    serverId = video.serverId
+                    serverId = video.serverId,
+                    movedToFavoriteDir = moved
                 )
             )
+            savedVideo
         }
     }
 

@@ -33,8 +33,11 @@ class PlayerViewModel(application: Application) : AndroidViewModel(application) 
         viewModelScope.launch {
             _uiState.value = PlayerUiState(isLoading = true)
             try {
-                when (source) {
-                    VideoSource.LOCAL -> {
+                when {
+                    folderPath == "__favorites__" -> {
+                        _uiState.value = PlayerUiState(videos = repository.getFavoriteVideos())
+                    }
+                    source == VideoSource.LOCAL -> {
                         val videos = withTimeoutOrNull(20_000L) {
                             withContext(Dispatchers.IO) {
                                 repository.getVideosInLocalFolder(folderPath)
@@ -55,5 +58,13 @@ class PlayerViewModel(application: Application) : AndroidViewModel(application) 
                 _uiState.value = PlayerUiState(error = "加载视频失败：${t.javaClass.simpleName}\n${t.message.orEmpty()}")
             }
         }
+    }
+
+    suspend fun isFavorite(path: String): Boolean = withContext(Dispatchers.IO) {
+        repository.isFavorite(path)
+    }
+
+    suspend fun toggleFavorite(video: VideoInfo): VideoInfo? = withContext(Dispatchers.IO) {
+        repository.toggleFavorite(video)
     }
 }

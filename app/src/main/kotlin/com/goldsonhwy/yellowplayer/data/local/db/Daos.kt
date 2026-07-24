@@ -8,7 +8,13 @@ interface FavoriteDao {
     @Query("SELECT * FROM favorites ORDER BY timestamp DESC")
     fun getAllFavorites(): Flow<List<FavoriteEntity>>
 
-    @Query("SELECT COUNT(*) FROM favorites WHERE path = :path")
+    @Query("SELECT * FROM favorites ORDER BY timestamp DESC")
+    suspend fun getAllFavoritesOnce(): List<FavoriteEntity>
+
+    @Query("SELECT * FROM favorites WHERE originalPath = :path OR currentPath = :path LIMIT 1")
+    suspend fun getFavoriteByAnyPath(path: String): FavoriteEntity?
+
+    @Query("SELECT COUNT(*) FROM favorites WHERE originalPath = :path OR currentPath = :path")
     suspend fun isFavorite(path: String): Int
 
     @Insert(onConflict = OnConflictStrategy.REPLACE)
@@ -17,7 +23,7 @@ interface FavoriteDao {
     @Delete
     suspend fun removeFavorite(favorite: FavoriteEntity)
 
-    @Query("DELETE FROM favorites WHERE path = :path")
+    @Query("DELETE FROM favorites WHERE originalPath = :path OR currentPath = :path")
     suspend fun removeFavoriteByPath(path: String)
 }
 
