@@ -9,7 +9,7 @@ import com.goldsonhwy.yellowplayer.data.scanner.VideoScanner
 import com.goldsonhwy.yellowplayer.smb.SambaClient
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.Flow
-import kotlinx.coroutines.flow.first
+import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.withContext
 import java.io.File
 
@@ -69,6 +69,46 @@ class VideoRepository(private val context: Context) {
 
     suspend fun listSambaFolders(server: SambaServer): Result<List<VideoFolder>> {
         return sambaClient.listFolders(server)
+    }
+
+    fun getSambaServers(): Flow<List<SambaServer>> {
+        return sambaServerDao.getAllServers().map { entities ->
+            entities.map { it.toModel() }
+        }
+    }
+
+    suspend fun saveSambaServer(server: SambaServer): Long {
+        val entity = SambaServerEntity(
+            id = server.id,
+            name = server.displayName.ifEmpty { server.name },
+            host = server.host,
+            port = server.port,
+            shareName = server.shareName,
+            username = server.username,
+            password = server.password
+        )
+        return if (server.id == 0L) {
+            sambaServerDao.insertServer(entity)
+        } else {
+            sambaServerDao.updateServer(entity)
+            server.id
+        }
+    }
+
+    suspend fun deleteSambaServer(server: SambaServer) {
+        if (server.id != 0L) sambaServerDao.deleteServerById(server.id)
+    }
+
+    suspend fun getSambaServer(id: Long): SambaServer? = sambaServerDao.getServer(id)?.toModel()
+
+    suspend fun listSambaFoldersById(serverId: Long): Result<List<VideoFolder>> {
+        val server = getSambaServer(serverId) ?: return Result.failure(IllegalArgumentException("Samba server not found: $serverId"))
+        return sambaClient.listFolders(server)
+    }
+
+    suspend fun listSambaVideosById(serverId: Long, folderPath: String): Result<List<VideoInfo>> {
+        val server = getSambaServer(serverId) ?: return Result.failure(IllegalArgumentException("Samba server not found: $serverId"))
+        return sambaClient.listVideos(server, folderPath)
     }
 
     suspend fun listSambaVideos(
@@ -133,4 +173,15 @@ class VideoRepository(private val context: Context) {
     suspend fun setLongPressSpeed(speed: Float) = settings.setLongPressSpeed(speed)
     suspend fun setVideoSort(sort: String) = settings.setVideoSort(sort)
     suspend fun setThumbnailSize(size: Int) = settings.setThumbnailSize(size)
+
+    private fun SambaServerEntity.toModel(): SambaServer = SambaServer(
+        id = id,
+        name = name,
+        host = host,
+        port = port,
+        shareName = shareName,
+        username = username,
+        password = password,
+        displayName = name
+    )
 }

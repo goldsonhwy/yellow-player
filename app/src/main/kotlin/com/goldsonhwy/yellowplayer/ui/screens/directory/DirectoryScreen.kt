@@ -57,7 +57,7 @@ fun DirectoryScreen(
     LaunchedEffect(source, folderPath) {
         when {
             isFavorites -> { /* Load favorites from Room */ }
-            isRootLevel -> viewModel.loadFolders(source)
+            isRootLevel -> viewModel.loadFolders(source, serverId)
             else -> viewModel.loadVideosInFolder(source, folderPath, serverId)
         }
     }

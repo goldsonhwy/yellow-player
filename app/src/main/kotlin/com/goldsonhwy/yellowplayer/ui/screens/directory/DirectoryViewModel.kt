@@ -37,7 +37,7 @@ class DirectoryViewModel(application: Application) : AndroidViewModel(applicatio
     private val _uiState = MutableStateFlow(DirectoryUiState())
     val uiState: StateFlow<DirectoryUiState> = _uiState.asStateFlow()
 
-    fun loadFolders(source: VideoSource) {
+    fun loadFolders(source: VideoSource, serverId: Long = 0L) {
         viewModelScope.launch {
             _uiState.value = DirectoryUiState(isLoading = true)
             try {
@@ -50,7 +50,24 @@ class DirectoryViewModel(application: Application) : AndroidViewModel(applicatio
                         )
                     }
                     VideoSource.SAMBA -> {
-                        _uiState.value = DirectoryUiState(isLoading = false)
+                        val result = withContext(Dispatchers.IO) {
+                            repository.listSambaFoldersById(serverId)
+                        }
+                        result.fold(
+                            onSuccess = { folders ->
+                                _uiState.value = DirectoryUiState(
+                                    folders = folders,
+                                    isLoading = false,
+                                    isSingleFolder = false
+                                )
+                            },
+                            onFailure = { err ->
+                                _uiState.value = DirectoryUiState(
+                                    isLoading = false,
+                                    error = "Samba 目录读取失败：${err.message.orEmpty()}"
+                                )
+                            }
+                        )
                     }
                 }
             } catch (e: CancellationException) {
@@ -123,13 +140,29 @@ class DirectoryViewModel(application: Application) : AndroidViewModel(applicatio
                             )
                         }
                     }
-                    else -> {
-                        _uiState.value = DirectoryUiState(
-                            isLoading = false,
-                            currentFolderPath = folderPath,
-                            error = "暂不支持此来源的文件夹浏览"
+                    VideoSource.SAMBA -> {
+                        val result = withContext(Dispatchers.IO) {
+                            repository.listSambaVideosById(serverId, folderPath)
+                        }
+                        result.fold(
+                            onSuccess = { videos ->
+                                _uiState.value = DirectoryUiState(
+                                    videos = videos,
+                                    isLoading = false,
+                                    isSingleFolder = true,
+                                    currentFolderPath = folderPath
+                                )
+                            },
+                            onFailure = { err ->
+                                _uiState.value = DirectoryUiState(
+                                    isLoading = false,
+                                    currentFolderPath = folderPath,
+                                    error = "Samba 视频读取失败：${err.message.orEmpty()}"
+                                )
+                            }
                         )
                     }
+                    else -> Unit
                 }
             } catch (e: CancellationException) {
                 throw e
