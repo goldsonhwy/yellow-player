@@ -13,6 +13,8 @@ import androidx.compose.material.icons.filled.Delete
 import androidx.compose.material.icons.filled.Favorite
 import androidx.compose.material.icons.filled.FavoriteBorder
 import androidx.compose.material.icons.filled.Share
+import androidx.compose.material.icons.filled.SkipNext
+import androidx.compose.material.icons.filled.SkipPrevious
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.runtime.*
@@ -142,6 +144,12 @@ fun PlayerScreen(
         }
     }
 
+    fun stepFrame(deltaMs: Long) {
+        player.pause()
+        val duration = player.duration.takeIf { it > 0 } ?: Long.MAX_VALUE
+        player.seekTo((player.currentPosition + deltaMs).coerceIn(0L, duration))
+    }
+
     Box(Modifier.fillMaxSize().background(Color.Black)) {
         if (videos.isNotEmpty()) {
             AndroidView(
@@ -162,13 +170,14 @@ fun PlayerScreen(
                 modifier = Modifier
                     .align(Alignment.TopCenter)
                     .fillMaxWidth()
-                    .height(5.dp)
-                    .background(White.copy(alpha = 0.25f))
+                    .statusBarsPadding()
+                    .height(8.dp)
+                    .background(Yellow500.copy(alpha = 0.22f))
             ) {
                 Box(
                     modifier = Modifier
-                        .fillMaxWidth(progress.coerceIn(0f, 1f))
-                        .height(5.dp)
+                        .fillMaxWidth(progress.coerceIn(0.02f, 1f))
+                        .height(8.dp)
                         .background(Yellow500)
                 )
             }
@@ -195,18 +204,27 @@ fun PlayerScreen(
             }
         }
 
-        // Bottom: only three buttons. Center=share, between center/right=like, right=delete.
+        // Bottom: five equally spaced buttons.
         if (videos.isNotEmpty()) {
-            Box(
+            Row(
                 modifier = Modifier
                     .align(Alignment.BottomCenter)
                     .fillMaxWidth()
                     .navigationBarsPadding()
-                    .padding(bottom = 22.dp)
+                    .padding(horizontal = 14.dp, vertical = 18.dp),
+                horizontalArrangement = Arrangement.SpaceEvenly,
+                verticalAlignment = Alignment.CenterVertically
             ) {
                 IconButton(
+                    onClick = { stepFrame(-33L) },
+                    modifier = Modifier.weight(1f)
+                ) {
+                    Icon(Icons.Default.SkipPrevious, "逐帧后退", tint = White, modifier = Modifier.size(34.dp))
+                }
+
+                IconButton(
                     onClick = { shareCurrentVideo() },
-                    modifier = Modifier.align(Alignment.Center)
+                    modifier = Modifier.weight(1f)
                 ) {
                     Icon(Icons.Default.Share, "分享", tint = White, modifier = Modifier.size(34.dp))
                 }
@@ -216,13 +234,11 @@ fun PlayerScreen(
                         isFavorite = !isFavorite
                         showLikeAnimation = true
                     },
-                    modifier = Modifier
-                        .align(Alignment.CenterEnd)
-                        .padding(end = 132.dp)
+                    modifier = Modifier.weight(1f)
                 ) {
                     Icon(
                         if (isFavorite) Icons.Default.Favorite else Icons.Default.FavoriteBorder,
-                        "点赞",
+                        "收藏",
                         tint = if (isFavorite) LikeRed else White,
                         modifier = Modifier.size(34.dp)
                     )
@@ -230,9 +246,16 @@ fun PlayerScreen(
 
                 IconButton(
                     onClick = { deleteCurrentVideo() },
-                    modifier = Modifier.align(Alignment.CenterEnd).padding(end = 18.dp)
+                    modifier = Modifier.weight(1f)
                 ) {
                     Icon(Icons.Default.Delete, "删除", tint = White, modifier = Modifier.size(34.dp))
+                }
+
+                IconButton(
+                    onClick = { stepFrame(33L) },
+                    modifier = Modifier.weight(1f)
+                ) {
+                    Icon(Icons.Default.SkipNext, "逐帧前进", tint = White, modifier = Modifier.size(34.dp))
                 }
             }
         }

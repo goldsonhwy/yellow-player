@@ -14,6 +14,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.text.input.PasswordVisualTransformation
+import androidx.compose.ui.text.input.VisualTransformation
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.lifecycle.viewmodel.compose.viewModel
@@ -221,6 +222,7 @@ private fun SambaServerDialog(
     var shareName by remember(server) { mutableStateOf(server?.shareName ?: "") }
     var username by remember(server) { mutableStateOf(server?.username ?: "") }
     var password by remember(server) { mutableStateOf(server?.password ?: "") }
+    var showPassword by remember(server) { mutableStateOf(false) }
 
     AlertDialog(
         onDismissRequest = onDismiss,
@@ -237,7 +239,24 @@ private fun SambaServerDialog(
                     OutlinedTextField(value = shareName, onValueChange = { shareName = it }, label = { Text("共享名") }, placeholder = { Text("Video", color = TextHint) }, colors = textFieldColors(), singleLine = true, modifier = Modifier.weight(1f))
                 }
                 OutlinedTextField(value = username, onValueChange = { username = it }, label = { Text("用户名") }, colors = textFieldColors(), singleLine = true, modifier = Modifier.fillMaxWidth())
-                OutlinedTextField(value = password, onValueChange = { password = it }, label = { Text("密码") }, colors = textFieldColors(), singleLine = true, visualTransformation = PasswordVisualTransformation(), modifier = Modifier.fillMaxWidth())
+                OutlinedTextField(
+                    value = password,
+                    onValueChange = { password = it },
+                    label = { Text("密码") },
+                    colors = textFieldColors(),
+                    singleLine = true,
+                    visualTransformation = if (showPassword) VisualTransformation.None else PasswordVisualTransformation(),
+                    trailingIcon = {
+                        IconButton(onClick = { showPassword = !showPassword }) {
+                            Icon(
+                                if (showPassword) Icons.Default.VisibilityOff else Icons.Default.Visibility,
+                                if (showPassword) "隐藏密码" else "显示密码",
+                                tint = TextSecondary
+                            )
+                        }
+                    },
+                    modifier = Modifier.fillMaxWidth()
+                )
             }
         },
         confirmButton = {

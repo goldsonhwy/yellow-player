@@ -1,17 +1,20 @@
 package com.goldsonhwy.yellowplayer.ui.screens.directory
 
 import android.Manifest
+import android.content.Context
 import android.content.Intent
 import android.content.pm.PackageManager
 import android.net.Uri
 import android.os.Build
 import android.os.Environment
-import android.provider.Settings
 import android.provider.DocumentsContract
+import android.provider.Settings
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
+import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.*
 import androidx.compose.material3.*
@@ -20,6 +23,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.core.content.ContextCompat
@@ -32,47 +36,29 @@ import com.goldsonhwy.yellowplayer.ui.theme.*
 @Composable
 fun SourceSelectScreen(navController: NavController) {
     val context = LocalContext.current
+    val prefs = remember { context.getSharedPreferences("local_video_folders", Context.MODE_PRIVATE) }
+    var savedFolders by remember { mutableStateOf(prefs.getStringSet("paths", emptySet()).orEmpty().toList().sorted()) }
     var showPermissionDialog by remember { mutableStateOf(false) }
     var permissionDialogMessage by remember { mutableStateOf("") }
     var pendingSource by remember { mutableStateOf<VideoSource?>(null) }
+    var showFolderManager by remember { mutableStateOf(false) }
 
-    // ─── Launchers declared FIRST (their lambdas inline everything) ──
-
-    val launcherReadMediaVideo = rememberLauncherForActivityResult(
-        contract = ActivityResultContracts.RequestPermission()
-    ) { granted ->
-        val src = pendingSource ?: return@rememberLauncherForActivityResult
-        if (granted) {
-            navController.navigate(Routes.directory(src))
-        } else {
-            permissionDialogMessage = "需要「视频和照片」权限才能扫描本地视频。\n\n请前往系统设置中授予权限。"
-            showPermissionDialog = true
-        }
+    fun refreshSavedFolders() {
+        savedFolders = prefs.getStringSet("paths", emptySet()).orEmpty().toList().sorted()
     }
 
-    val launcherReadStorage = rememberLauncherForActivityResult(
-        contract = ActivityResultContracts.RequestPermission()
-    ) { granted ->
-        val src = pendingSource ?: return@rememberLauncherForActivityResult
-        if (granted) {
-            navController.navigate(Routes.directory(src))
-        } else {
-            permissionDialogMessage = "需要「存储」权限才能扫描本地视频。"
-            showPermissionDialog = true
-        }
+    fun saveFolder(path: String) {
+        val set = prefs.getStringSet("paths", emptySet()).orEmpty().toMutableSet()
+        set.add(path)
+        prefs.edit().putStringSet("paths", set).apply()
+        refreshSavedFolders()
     }
 
-    val manageStorageLauncher = rememberLauncherForActivityResult(
-        contract = ActivityResultContracts.StartActivityForResult()
-    ) { _ ->
-        val src = pendingSource ?: return@rememberLauncherForActivityResult
-        if (Environment.isExternalStorageManager()) {
-            navController.navigate(Routes.directory(src))
-        } else {
-            permissionDialogMessage = "未获得文件访问权限，无法读取本地视频。" +
-                    "\n\n请在系统设置中手动授予权限。"
-            showPermissionDialog = true
-        }
+    fun removeFolder(path: String) {
+        val set = prefs.getStringSet("paths", emptySet()).orEmpty().toMutableSet()
+        set.remove(path)
+        prefs.edit().putStringSet("paths", set).apply()
+        refreshSavedFolders()
     }
 
     val folderPickerLauncher = rememberLauncherForActivityResult(
@@ -87,11 +73,8 @@ fun SourceSelectScreen(navController: NavController) {
             } catch (_: Exception) { }
             val path = treeUriToPrimaryPath(uri)
             if (path != null) {
-                val prefs = context.getSharedPreferences("local_video_folders", android.content.Context.MODE_PRIVATE)
-                val old = prefs.getStringSet("paths", emptySet()).orEmpty().toMutableSet()
-                old.add(path)
-                prefs.edit().putStringSet("paths", old).apply()
-                navController.navigate(Routes.directory(VideoSource.LOCAL))
+                saveFolder(path)
+                showFolderManager = true
             } else {
                 permissionDialogMessage = "当前只支持手机主存储目录。请选择内部存储中的视频文件夹。"
                 showPermissionDialog = true
@@ -99,61 +82,57 @@ fun SourceSelectScreen(navController: NavController) {
         }
     }
 
-    // ─── Click handler (inlined, no forward references) ─────
+    val launcherReadMediaVideo = rememberLauncherForActivityResult(ActivityResultContracts.RequestPermission()) { granted ->
+        if (granted) folderPickerLauncher.launch(null) else {
+            permissionDialogMessage = "需要「视频和照片」权限才能扫描本地视频。"
+            showPermissionDialog = true
+        }
+    }
 
-    fun onLocalStorageClick() {
+    val launcherReadStorage = rememberLauncherForActivityResult(ActivityResultContracts.RequestPermission()) { granted ->
+        if (granted) folderPickerLauncher.launch(null) else {
+            permissionDialogMessage = "需要「存储」权限才能扫描本地视频。"
+            showPermissionDialog = true
+        }
+    }
+
+    val manageStorageLauncher = rememberLauncherForActivityResult(ActivityResultContracts.StartActivityForResult()) {
+        if (Build.VERSION.SDK_INT < 30 || Environment.isExternalStorageManager()) {
+            folderPickerLauncher.launch(null)
+        } else {
+            permissionDialogMessage = "未获得文件访问权限，无法读取本地视频。请在系统设置中手动授予权限。"
+            showPermissionDialog = true
+        }
+    }
+
+    fun ensurePermissionThenPickFolder() {
         val source = VideoSource.LOCAL
         when {
             Build.VERSION.SDK_INT >= 30 && !Environment.isExternalStorageManager() -> {
                 pendingSource = source
-                permissionDialogMessage = "Yellow Player 需要「所有文件访问权限」才能读取本地视频文件，" +
-                        "包括 .nomedia 文件夹中的内容。\n\n" +
-                        "请点击「去授权」→ 找到 Yellow Player → 开启「允许管理所有文件」。"
+                permissionDialogMessage = "Yellow Player 需要「所有文件访问权限」才能读取本地视频文件，包括 .nomedia 文件夹中的内容。\n\n请点击「去授权」→ 找到 Yellow Player → 开启「允许管理所有文件」。"
                 showPermissionDialog = true
             }
-            Build.VERSION.SDK_INT >= 33 && ContextCompat.checkSelfPermission(
-                context, Manifest.permission.READ_MEDIA_VIDEO
-            ) != PackageManager.PERMISSION_GRANTED -> {
+            Build.VERSION.SDK_INT >= 33 && ContextCompat.checkSelfPermission(context, Manifest.permission.READ_MEDIA_VIDEO) != PackageManager.PERMISSION_GRANTED -> {
                 pendingSource = source
                 launcherReadMediaVideo.launch(Manifest.permission.READ_MEDIA_VIDEO)
             }
-            Build.VERSION.SDK_INT < 30 && ContextCompat.checkSelfPermission(
-                context, Manifest.permission.READ_EXTERNAL_STORAGE
-            ) != PackageManager.PERMISSION_GRANTED -> {
+            Build.VERSION.SDK_INT < 30 && ContextCompat.checkSelfPermission(context, Manifest.permission.READ_EXTERNAL_STORAGE) != PackageManager.PERMISSION_GRANTED -> {
                 pendingSource = source
                 launcherReadStorage.launch(Manifest.permission.READ_EXTERNAL_STORAGE)
             }
-            else -> {
-                val saved = context.getSharedPreferences("local_video_folders", android.content.Context.MODE_PRIVATE)
-                    .getStringSet("paths", emptySet()).orEmpty()
-                if (saved.isNotEmpty()) navController.navigate(Routes.directory(VideoSource.LOCAL))
-                else folderPickerLauncher.launch(null)
-            }
+            else -> folderPickerLauncher.launch(null)
         }
     }
-
-    // ─── UI ──────────────────────────────────────────────────
 
     Scaffold(
         topBar = {
             TopAppBar(
-                title = {
-                    Text(
-                        "Yellow Player",
-                        fontWeight = FontWeight.Bold,
-                        color = Yellow500
-                    )
-                },
-                colors = TopAppBarDefaults.topAppBarColors(
-                    containerColor = DarkBackground
-                ),
+                title = { Text("Yellow Player", fontWeight = FontWeight.Bold, color = Yellow500) },
+                colors = TopAppBarDefaults.topAppBarColors(containerColor = DarkBackground),
                 actions = {
                     IconButton(onClick = { navController.navigate(Routes.SETTINGS) }) {
-                        Icon(
-                            Icons.Default.Settings,
-                            contentDescription = "设置",
-                            tint = TextSecondary
-                        )
+                        Icon(Icons.Default.Settings, "设置", tint = TextSecondary)
                     }
                 }
             )
@@ -161,33 +140,33 @@ fun SourceSelectScreen(navController: NavController) {
         containerColor = DarkBackground
     ) { padding ->
         Column(
-            modifier = Modifier
-                .fillMaxSize()
-                .padding(padding)
-                .padding(16.dp),
+            modifier = Modifier.fillMaxSize().padding(padding).padding(16.dp),
             verticalArrangement = Arrangement.spacedBy(16.dp)
         ) {
-            Text(
-                text = "选择视频源",
-                color = TextPrimary,
-                fontSize = 18.sp,
-                modifier = Modifier.padding(bottom = 8.dp)
+            Text("选择视频源", color = TextPrimary, fontSize = 18.sp, modifier = Modifier.padding(bottom = 8.dp))
+
+            SourceCard(
+                title = "本地视频画廊",
+                subtitle = if (savedFolders.isEmpty()) "还没有添加文件夹，请先添加" else "已添加 ${savedFolders.size} 个视频文件夹，点击进入画廊",
+                icon = Icons.Default.VideoLibrary,
+                onClick = {
+                    if (savedFolders.isEmpty()) showFolderManager = true
+                    else navController.navigate(Routes.directory(VideoSource.LOCAL))
+                }
             )
 
             SourceCard(
-                title = "添加本地视频文件夹",
-                subtitle = "只读取你选择的文件夹及其子目录（含 .nomedia 视频）",
-                icon = Icons.Default.Storage,
-                onClick = { onLocalStorageClick() }
+                title = "添加 / 管理本地文件夹",
+                subtitle = "添加视频文件夹，也可以删除已添加的文件夹",
+                icon = Icons.Default.CreateNewFolder,
+                onClick = { showFolderManager = true }
             )
 
             SourceCard(
                 title = "外置存储",
                 subtitle = "USB / OTG / SD 卡（需手动选择目录）",
                 icon = Icons.Default.SdCard,
-                onClick = {
-                    navController.navigate(Routes.directory(VideoSource.EXTERNAL))
-                }
+                onClick = { navController.navigate(Routes.directory(VideoSource.EXTERNAL)) }
             )
 
             SourceCard(
@@ -202,45 +181,71 @@ fun SourceSelectScreen(navController: NavController) {
                 subtitle = "你点赞过的视频",
                 icon = Icons.Default.FavoriteBorder,
                 tint = LikeRed,
-                onClick = {
-                    navController.navigate(
-                        Routes.directory(VideoSource.LOCAL, "__favorites__")
-                    )
-                }
+                onClick = { navController.navigate(Routes.directory(VideoSource.LOCAL, "__favorites__")) }
             )
 
-            Spacer(modifier = Modifier.weight(1f))
-
-            val permStatus = when {
-                Build.VERSION.SDK_INT >= 30 && Environment.isExternalStorageManager() ->
-                    "✅ 已获得完整文件访问权限（含 .nomedia）"
-                Build.VERSION.SDK_INT >= 30 ->
-                    "⚠️ 需要「所有文件访问权限」才能读取 .nomedia 视频"
-                ContextCompat.checkSelfPermission(
-                    context, Manifest.permission.READ_EXTERNAL_STORAGE
-                ) == PackageManager.PERMISSION_GRANTED ->
-                    "✅ 已获得存储权限"
-                else -> "⚠️ 需要存储权限"
-            }
+            Spacer(Modifier.weight(1f))
             Text(
-                text = permStatus,
-                color = if (permStatus.startsWith("✅")) TextSecondary else Yellow500,
+                text = if (Build.VERSION.SDK_INT >= 30 && Environment.isExternalStorageManager()) "✅ 已获得完整文件访问权限（含 .nomedia）" else "⚠️ 需要权限才能读取 .nomedia 视频",
+                color = TextSecondary,
                 fontSize = 12.sp,
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .padding(horizontal = 4.dp)
+                modifier = Modifier.fillMaxWidth().padding(horizontal = 4.dp)
             )
-
-            Text(
-                text = "v0.0.12",
-                color = TextHint,
-                fontSize = 12.sp,
-                modifier = Modifier.align(Alignment.CenterHorizontally)
-            )
+            Text("v0.0.13", color = TextHint, fontSize = 12.sp, modifier = Modifier.align(Alignment.CenterHorizontally))
         }
     }
 
-    // ─── Permission Dialog ───────────────────────────────────
+    if (showFolderManager) {
+        AlertDialog(
+            onDismissRequest = { showFolderManager = false },
+            containerColor = DarkSurface,
+            titleContentColor = TextPrimary,
+            textContentColor = TextSecondary,
+            title = { Text("本地视频文件夹", fontWeight = FontWeight.Bold) },
+            text = {
+                Column(
+                    modifier = Modifier.heightIn(max = 360.dp).verticalScroll(rememberScrollState()),
+                    verticalArrangement = Arrangement.spacedBy(8.dp)
+                ) {
+                    if (savedFolders.isEmpty()) {
+                        Text("还没有添加文件夹。点击下方「添加文件夹」。", color = TextSecondary)
+                    } else {
+                        savedFolders.forEach { path ->
+                            Row(
+                                modifier = Modifier.fillMaxWidth(),
+                                verticalAlignment = Alignment.CenterVertically
+                            ) {
+                                Column(modifier = Modifier.weight(1f)) {
+                                    Text(path.substringAfterLast('/').ifEmpty { path }, color = TextPrimary, maxLines = 1, overflow = TextOverflow.Ellipsis)
+                                    Text(path, color = TextHint, fontSize = 11.sp, maxLines = 1, overflow = TextOverflow.Ellipsis)
+                                }
+                                IconButton(onClick = { removeFolder(path) }) {
+                                    Icon(Icons.Default.Delete, "删除", tint = LikeRed)
+                                }
+                            }
+                            Divider(color = DarkSurfaceVariant)
+                        }
+                    }
+                }
+            },
+            confirmButton = {
+                TextButton(onClick = { ensurePermissionThenPickFolder() }) {
+                    Text("添加文件夹", color = Yellow500)
+                }
+            },
+            dismissButton = {
+                Row {
+                    if (savedFolders.isNotEmpty()) {
+                        TextButton(onClick = {
+                            showFolderManager = false
+                            navController.navigate(Routes.directory(VideoSource.LOCAL))
+                        }) { Text("进入画廊", color = Yellow500) }
+                    }
+                    TextButton(onClick = { showFolderManager = false }) { Text("关闭", color = TextSecondary) }
+                }
+            }
+        )
+    }
 
     if (showPermissionDialog) {
         AlertDialog(
@@ -254,28 +259,15 @@ fun SourceSelectScreen(navController: NavController) {
                 Button(
                     onClick = {
                         showPermissionDialog = false
-                        val src = pendingSource ?: return@Button
                         if (Build.VERSION.SDK_INT >= 30 && !Environment.isExternalStorageManager()) {
-                            val intent = Intent(
-                                Settings.ACTION_MANAGE_APP_ALL_FILES_ACCESS_PERMISSION,
-                                Uri.parse("package:${context.packageName}")
-                            )
+                            val intent = Intent(Settings.ACTION_MANAGE_APP_ALL_FILES_ACCESS_PERMISSION, Uri.parse("package:${context.packageName}"))
                             manageStorageLauncher.launch(intent)
-                        } else {
-                            // Re-trigger permission check after dialog
-                            onLocalStorageClick()
-                        }
+                        } else ensurePermissionThenPickFolder()
                     },
                     colors = ButtonDefaults.buttonColors(containerColor = Yellow500)
-                ) {
-                    Text(if (Build.VERSION.SDK_INT >= 30 && !Environment.isExternalStorageManager()) "去授权" else "知道了", color = Black)
-                }
+                ) { Text(if (Build.VERSION.SDK_INT >= 30 && !Environment.isExternalStorageManager()) "去授权" else "重试", color = Black) }
             },
-            dismissButton = {
-                TextButton(onClick = { showPermissionDialog = false }) {
-                    Text("取消", color = TextSecondary)
-                }
-            }
+            dismissButton = { TextButton(onClick = { showPermissionDialog = false }) { Text("取消", color = TextSecondary) } }
         )
     }
 }
@@ -289,37 +281,19 @@ private fun SourceCard(
     onClick: () -> Unit
 ) {
     Card(
-        modifier = Modifier
-            .fillMaxWidth()
-            .clickable(onClick = onClick),
+        modifier = Modifier.fillMaxWidth().clickable(onClick = onClick),
         colors = CardDefaults.cardColors(containerColor = DarkSurfaceVariant),
         shape = MaterialTheme.shapes.medium
     ) {
         Row(
-            modifier = Modifier
-                .fillMaxWidth()
-                .padding(20.dp),
+            modifier = Modifier.fillMaxWidth().padding(20.dp),
             verticalAlignment = Alignment.CenterVertically,
             horizontalArrangement = Arrangement.spacedBy(16.dp)
         ) {
-            Icon(
-                icon,
-                contentDescription = null,
-                tint = tint,
-                modifier = Modifier.size(32.dp)
-            )
+            Icon(icon, null, tint = tint, modifier = Modifier.size(32.dp))
             Column {
-                Text(
-                    text = title,
-                    color = TextPrimary,
-                    fontSize = 16.sp,
-                    fontWeight = FontWeight.Medium
-                )
-                Text(
-                    text = subtitle,
-                    color = TextSecondary,
-                    fontSize = 13.sp
-                )
+                Text(title, color = TextPrimary, fontSize = 16.sp, fontWeight = FontWeight.Medium)
+                Text(subtitle, color = TextSecondary, fontSize = 13.sp)
             }
         }
     }
@@ -333,7 +307,5 @@ private fun treeUriToPrimaryPath(uri: Uri): String? {
             val rel = treeId.removePrefix("primary:")
             Environment.getExternalStorageDirectory().absolutePath + "/" + rel
         } else null
-    } catch (_: Exception) {
-        null
-    }
+    } catch (_: Exception) { null }
 }
