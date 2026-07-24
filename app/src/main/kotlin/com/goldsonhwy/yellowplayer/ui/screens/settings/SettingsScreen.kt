@@ -1,5 +1,7 @@
 package com.goldsonhwy.yellowplayer.ui.screens.settings
 
+import android.content.Intent
+import android.widget.Toast
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
@@ -9,19 +11,44 @@ import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import androidx.core.content.FileProvider
 import androidx.navigation.NavController
 import com.goldsonhwy.yellowplayer.ui.theme.*
+import com.goldsonhwy.yellowplayer.util.CrashReporter
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun SettingsScreen(navController: NavController) {
+    val context = LocalContext.current
     var longPressSpeed by remember { mutableFloatStateOf(2f) }
     var showSpeedDialog by remember { mutableStateOf(false) }
     var showSortDialog by remember { mutableStateOf(false) }
     var currentSort by remember { mutableStateOf("name") }
+
+    fun exportDebugLog() {
+        try {
+            val zip = CrashReporter.createDebugZip(context)
+            val uri = FileProvider.getUriForFile(
+                context,
+                "${context.packageName}.fileprovider",
+                zip
+            )
+            val intent = Intent(Intent.ACTION_SEND).apply {
+                type = "application/zip"
+                putExtra(Intent.EXTRA_STREAM, uri)
+                putExtra(Intent.EXTRA_SUBJECT, "Yellow Player 调试日志")
+                putExtra(Intent.EXTRA_TEXT, "Yellow Player v0.0.7 调试日志/崩溃日志")
+                addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)
+            }
+            context.startActivity(Intent.createChooser(intent, "导出调试日志"))
+        } catch (t: Throwable) {
+            Toast.makeText(context, "导出失败：${t.message}", Toast.LENGTH_LONG).show()
+        }
+    }
 
     Scaffold(
         topBar = {
@@ -45,7 +72,6 @@ fun SettingsScreen(navController: NavController) {
                 .padding(16.dp),
             verticalArrangement = Arrangement.spacedBy(4.dp)
         ) {
-            // Section: Playback
             SectionHeader("播放")
 
             SettingsItem(
@@ -78,7 +104,7 @@ fun SettingsScreen(navController: NavController) {
                 icon = Icons.Default.PhotoSizeSelectLarge,
                 title = "缩略图尺寸",
                 subtitle = "控制网格中缩略图的大小",
-                onClick = { /* TODO: size picker */ }
+                onClick = { }
             )
 
             Divider(color = DarkSurfaceVariant, modifier = Modifier.padding(vertical = 4.dp))
@@ -89,7 +115,18 @@ fun SettingsScreen(navController: NavController) {
                 icon = Icons.Default.DeleteSweep,
                 title = "清除缓存",
                 subtitle = "清除 Samba 缩略图缓存",
-                onClick = { /* TODO: clear cache */ }
+                onClick = { }
+            )
+
+            Divider(color = DarkSurfaceVariant, modifier = Modifier.padding(vertical = 4.dp))
+
+            SectionHeader("调试")
+
+            SettingsItem(
+                icon = Icons.Default.BugReport,
+                title = "导出调试/崩溃日志",
+                subtitle = "闪退后点这里，把 zip 发给我定位真实原因",
+                onClick = { exportDebugLog() }
             )
 
             Divider(color = DarkSurfaceVariant, modifier = Modifier.padding(vertical = 4.dp))
@@ -99,7 +136,7 @@ fun SettingsScreen(navController: NavController) {
             SettingsItem(
                 icon = Icons.Default.Info,
                 title = "版本",
-                subtitle = "1.0.0",
+                subtitle = "0.0.7",
                 onClick = {}
             )
 
@@ -107,7 +144,6 @@ fun SettingsScreen(navController: NavController) {
         }
     }
 
-    // Speed dialog
     if (showSpeedDialog) {
         SpeedPickerDialog(
             currentSpeed = longPressSpeed,
@@ -119,7 +155,6 @@ fun SettingsScreen(navController: NavController) {
         )
     }
 
-    // Sort dialog
     if (showSortDialog) {
         SortDialog(
             currentSort = currentSort,

@@ -5,8 +5,15 @@ import coil.ImageLoader
 import coil.ImageLoaderFactory
 import coil.disk.DiskCache
 import coil.memory.MemoryCache
+import com.goldsonhwy.yellowplayer.util.CrashReporter
 
 class YellowPlayerApp : Application(), ImageLoaderFactory {
+
+    override fun onCreate() {
+        super.onCreate()
+        CrashReporter.install(this)
+        CrashReporter.writeDebugSnapshot(this, "application start")
+    }
 
     override fun newImageLoader(): ImageLoader {
         return ImageLoader.Builder(this)
