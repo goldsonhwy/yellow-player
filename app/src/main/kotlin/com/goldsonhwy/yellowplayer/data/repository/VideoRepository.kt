@@ -54,7 +54,7 @@ class VideoRepository(private val context: Context) {
 
     suspend fun getVideosInLocalFolder(folderPath: String): List<VideoInfo> =
         withContext(Dispatchers.IO) {
-            scanner.scanDirectory(File(folderPath), VideoSource.LOCAL)
+            scanner.scanDirectoryIterative(File(folderPath), VideoSource.LOCAL)
         }
 
     fun getThumbnailUri(videoPath: String): Uri? {

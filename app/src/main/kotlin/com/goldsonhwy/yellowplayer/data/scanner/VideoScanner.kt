@@ -5,18 +5,20 @@ import android.content.Context
 import android.net.Uri
 import android.os.Environment
 import android.provider.MediaStore
-import android.provider.DocumentsContract
 import com.goldsonhwy.yellowplayer.data.model.VideoFolder
 import com.goldsonhwy.yellowplayer.data.model.VideoInfo
 import com.goldsonhwy.yellowplayer.data.model.VideoSource
 import java.io.File
+import java.util.LinkedList
 
 /**
  * Scans local storage for video files, including .nomedia folders.
  *
  * Two-pass strategy:
  * 1. MediaStore query — fast, provides thumbnails + metadata
- * 2. File API walk — catches folders with .nomedia that MediaStore skips
+ * 2. File API walk (iterative, not recursive) — catches folders with .nomedia
+ *
+ * Both passes wrapped in try-catch at every level to prevent crashes.
  */
 class VideoScanner(private val context: Context) {
 
@@ -26,137 +28,178 @@ class VideoScanner(private val context: Context) {
             "ts", "m4v", "3gp", "wmv", "mpeg", "mpg", "vob"
         )
 
-        private val VIDEO_MIME_TYPES = arrayOf(
-            "video/mp4",
-            "video/x-matroska",
-            "video/avi",
-            "video/quicktime",
-            "video/x-flv",
-            "video/webm",
-            "video/mp2t",
-            "video/x-msvideo",
-            "video/3gpp",
-            "video/x-ms-wmv",
-            "video/mpeg"
+        private val EXCLUDED_DIRS = setOf(
+            "android", "obb", "data", "cache", "tmp", "temp",
+            "log", "logs", "thumbnails", ".thumbnails",
+            "alarms", "notifications", "ringtones"
         )
+
+        // Max scan depth to prevent stack/memory issues
+        private const val MAX_DEPTH = 12
+        // Max folders to scan
+        private const val MAX_FOLDERS = 5000
     }
 
     /**
-     * Scan local storage — returns all video files including those behind .nomedia.
+     * Scan ALL local video files (iterative, no recursion).
      */
     fun scanAllVideos(onProgress: (Int) -> Unit = {}): List<VideoInfo> {
         val videos = mutableListOf<VideoInfo>()
 
-        // Pass 1: MediaStore (normal videos, fast)
-        videos.addAll(scanMediaStore(onProgress))
+        // Pass 1: MediaStore (non-.nomedia files)
+        try {
+            videos.addAll(scanMediaStore(onProgress))
+        } catch (_: Exception) { }
 
-        // Pass 2: File API walk — finds .nomedia-hidden videos
-        val nomediaFolders = findNomediaFolders()
-        onProgress(videos.size)
-        for (folder in nomediaFolders) {
-            videos.addAll(scanDirectory(folder, VideoSource.LOCAL))
-            onProgress(videos.size)
-        }
+        // Pass 2: Iterative file walk for .nomedia folders
+        try {
+            val nomediaFolders = findNomediaFoldersIterative()
+            for (folder in nomediaFolders) {
+                try {
+                    videos.addAll(scanDirectoryIterative(folder, VideoSource.LOCAL))
+                } catch (_: Exception) { }
+                onProgress(videos.size)
+            }
+        } catch (_: Exception) { }
 
         return videos.distinctBy { it.path }
     }
 
     /**
-     * Scans a specific directory and all subdirectories for video files.
+     * Iterative directory scan using a Queue (no recursion / stack overflow risk).
      */
-    fun scanDirectory(
-        dir: File,
+    fun scanDirectoryIterative(
+        rootDir: File,
         source: VideoSource = VideoSource.LOCAL
     ): List<VideoInfo> {
         val result = mutableListOf<VideoInfo>()
-        if (!dir.exists() || !dir.isDirectory) return result
+        if (!rootDir.exists() || !rootDir.isDirectory) return result
 
-        dir.listFiles()?.forEach { file ->
-            when {
-                file.isDirectory && !file.name.startsWith(".") -> {
-                    result.addAll(scanDirectory(file, source))
-                }
-                file.isFile && isVideoFile(file.name) -> {
-                    result.add(
-                        VideoInfo(
-                            name = file.name,
-                            path = file.absolutePath,
-                            uri = Uri.fromFile(file).toString(),
-                            size = file.length(),
-                            dateModified = file.lastModified(),
-                            folderPath = file.parent ?: "",
-                            source = source
-                        )
-                    )
-                }
+        val queue = LinkedList<File>()
+        queue.add(rootDir)
+        var depth = 0
+
+        while (queue.isNotEmpty() && depth < MAX_DEPTH && result.size < MAX_FOLDERS) {
+            val batch = mutableListOf<File>()
+            while (queue.isNotEmpty() && batch.size < 100) {
+                batch.add(queue.poll())
             }
+
+            for (dir in batch) {
+                try {
+                    val files = dir.listFiles() ?: continue
+                    for (file in files) {
+                        try {
+                            when {
+                                file.isDirectory -> {
+                                    val name = file.name.lowercase()
+                                    if (!name.startsWith(".") && name !in EXCLUDED_DIRS) {
+                                        queue.add(file)
+                                    }
+                                }
+                                file.isFile && isVideoFile(file.name) -> {
+                                    result.add(
+                                        VideoInfo(
+                                            name = file.name,
+                                            path = file.absolutePath,
+                                            uri = Uri.fromFile(file).toString(),
+                                            size = file.length(),
+                                            dateModified = file.lastModified(),
+                                            folderPath = dir.absolutePath,
+                                            source = source
+                                        )
+                                    )
+                                }
+                            }
+                        } catch (_: Exception) { }
+                    }
+                } catch (_: Exception) { }
+            }
+            depth++
         }
+
         return result
     }
 
     /**
-     * Scan a directory and return folders that contain videos (for grid view).
+     * Scan folders that contain videos (for grid view). Iterative.
      */
     fun scanVideoFolders(
         rootDirs: List<File> = defaultScanDirs(),
         source: VideoSource = VideoSource.LOCAL
     ): Map<File, List<VideoInfo>> {
         val folderMap = LinkedHashMap<File, MutableList<VideoInfo>>()
-
         for (root in rootDirs) {
-            scanFoldersRecursive(root, folderMap, source)
+            try {
+                scanFoldersIterative(root, folderMap, source)
+            } catch (_: Exception) { }
         }
-
         return folderMap
     }
 
-    private fun scanFoldersRecursive(
-        dir: File,
+    private fun scanFoldersIterative(
+        rootDir: File,
         folderMap: LinkedHashMap<File, MutableList<VideoInfo>>,
         source: VideoSource
     ) {
-        if (!dir.exists() || !dir.isDirectory || dir.name.startsWith(".")) return
+        if (!rootDir.exists() || !rootDir.isDirectory) return
 
-        val videos = mutableListOf<VideoInfo>()
-        val subDirs = mutableListOf<File>()
+        val queue = LinkedList<File>()
+        queue.add(rootDir)
+        var depth = 0
+        var folderCount = 0
 
-        dir.listFiles()?.forEach { file ->
-            when {
-                file.isDirectory && !file.name.startsWith(".") -> {
-                    subDirs.add(file)
-                }
-                file.isFile && isVideoFile(file.name) -> {
-                    videos.add(
-                        VideoInfo(
-                            name = file.name,
-                            path = file.absolutePath,
-                            uri = Uri.fromFile(file).toString(),
-                            size = file.length(),
-                            dateModified = file.lastModified(),
-                            folderPath = dir.absolutePath,
-                            source = source
-                        )
-                    )
+        while (queue.isNotEmpty() && depth < MAX_DEPTH && folderCount < MAX_FOLDERS) {
+            val batch = mutableListOf<File>()
+            while (queue.isNotEmpty() && batch.size < 100) {
+                queue.poll()?.let { batch.add(it) }
+            }
+
+            for (dir in batch) {
+                folderCount++
+                val videosInDir = mutableListOf<VideoInfo>()
+
+                try {
+                    val files = dir.listFiles() ?: continue
+                    for (file in files) {
+                        try {
+                            when {
+                                file.isDirectory -> {
+                                    val name = file.name.lowercase()
+                                    if (!name.startsWith(".") && name !in EXCLUDED_DIRS) {
+                                        queue.add(file)
+                                    }
+                                }
+                                file.isFile && isVideoFile(file.name) -> {
+                                    videosInDir.add(
+                                        VideoInfo(
+                                            name = file.name,
+                                            path = file.absolutePath,
+                                            uri = Uri.fromFile(file).toString(),
+                                            size = file.length(),
+                                            dateModified = file.lastModified(),
+                                            folderPath = dir.absolutePath,
+                                            source = source
+                                        )
+                                    )
+                                }
+                            }
+                        } catch (_: Exception) { }
+                    }
+                } catch (_: Exception) { }
+
+                if (videosInDir.isNotEmpty()) {
+                    folderMap.getOrPut(dir) { mutableListOf() }.addAll(videosInDir)
                 }
             }
-        }
-
-        if (videos.isNotEmpty()) {
-            folderMap.getOrPut(dir) { mutableListOf() }.addAll(videos)
-        }
-
-        for (sub in subDirs) {
-            scanFoldersRecursive(sub, folderMap, source)
+            depth++
         }
     }
 
-    /**
-     * Get a single thumbnail URI for a video file (used by grid view).
-     */
     fun getThumbnailUri(videoPath: String): Uri? {
         try {
             val file = File(videoPath)
-            if (!file.exists()) return null
+            if (!file.exists()) return Uri.fromFile(file) // Let Coil try anyway
 
             val projection = arrayOf(MediaStore.Video.Media._ID)
             val selection = "${MediaStore.Video.Media.DATA} = ?"
@@ -179,11 +222,10 @@ class VideoScanner(private val context: Context) {
             }
         } catch (_: Exception) { }
 
-        // Fallback: return the video URI itself (Glide can handle it)
         return Uri.fromFile(File(videoPath))
     }
 
-    // ─── Private helpers ─────────────────────────────────────────
+    // ─── Private ────────────────────────────────────────────
 
     private fun scanMediaStore(onProgress: (Int) -> Unit): List<VideoInfo> {
         val videos = mutableListOf<VideoInfo>()
@@ -205,7 +247,8 @@ class VideoScanner(private val context: Context) {
 
         try {
             context.contentResolver.query(
-                collection, projection, null, null, "${MediaStore.Video.Media.DATE_MODIFIED} DESC"
+                collection, projection, null, null,
+                "${MediaStore.Video.Media.DATE_MODIFIED} DESC"
             )?.use { cursor ->
                 val idCol = cursor.getColumnIndexOrThrow(MediaStore.Video.Media._ID)
                 val nameCol = cursor.getColumnIndexOrThrow(MediaStore.Video.Media.DISPLAY_NAME)
@@ -217,28 +260,31 @@ class VideoScanner(private val context: Context) {
 
                 var count = 0
                 while (cursor.moveToNext()) {
-                    val data = cursor.getString(dataCol)
-                    if (data == null || !File(data).exists()) continue
+                    try {
+                        val data = cursor.getString(dataCol) ?: continue
+                        val file = File(data)
+                        if (!file.exists()) continue
 
-                    videos.add(
-                        VideoInfo(
-                            id = cursor.getLong(idCol),
-                            name = cursor.getString(nameCol) ?: "Unknown",
-                            path = data,
-                            uri = ContentUris.withAppendedId(
-                                MediaStore.Video.Media.EXTERNAL_CONTENT_URI,
-                                cursor.getLong(idCol)
-                            ).toString(),
-                            size = cursor.getLong(sizeCol),
-                            duration = cursor.getLong(durCol),
-                            dateModified = cursor.getLong(dateCol),
-                            folderPath = File(data).parent ?: "",
-                            source = VideoSource.LOCAL,
-                            mimeType = cursor.getString(mimeCol) ?: "video/mp4"
+                        videos.add(
+                            VideoInfo(
+                                id = cursor.getLong(idCol),
+                                name = cursor.getString(nameCol) ?: "Unknown",
+                                path = data,
+                                uri = ContentUris.withAppendedId(
+                                    MediaStore.Video.Media.EXTERNAL_CONTENT_URI,
+                                    cursor.getLong(idCol)
+                                ).toString(),
+                                size = cursor.getLong(sizeCol),
+                                duration = cursor.getLong(durCol),
+                                dateModified = cursor.getLong(dateCol),
+                                folderPath = file.parent ?: "",
+                                source = VideoSource.LOCAL,
+                                mimeType = cursor.getString(mimeCol) ?: "video/mp4"
+                            )
                         )
-                    )
-                    count++
-                    if (count % 50 == 0) onProgress(count)
+                        count++
+                        if (count % 50 == 0) onProgress(count)
+                    } catch (_: Exception) { }
                 }
             }
         } catch (_: Exception) { }
@@ -247,35 +293,52 @@ class VideoScanner(private val context: Context) {
     }
 
     /**
-     * Find all folders that contain a .nomedia file, recursively.
+     * Find folders containing .nomedia files (iterative).
      */
-    private fun findNomediaFolders(): List<File> {
+    private fun findNomediaFoldersIterative(): List<File> {
         val result = mutableListOf<File>()
-        val roots = defaultScanDirs()
-
-        for (root in roots) {
-            findNomediaRecursive(root, result)
+        for (root in defaultScanDirs()) {
+            try {
+                findNomediaIterative(root, result)
+            } catch (_: Exception) { }
         }
         return result
     }
 
-    private fun findNomediaRecursive(dir: File, result: MutableList<File>) {
-        if (!dir.exists() || !dir.isDirectory) return
+    private fun findNomediaIterative(root: File, result: MutableList<File>) {
+        if (!root.exists() || !root.isDirectory) return
 
-        val hasNomedia = File(dir, ".nomedia").exists()
-        if (hasNomedia) {
-            // Check if this folder actually has video files
-            val hasVideos = dir.listFiles()?.any { isVideoFile(it.name) } == true
-            if (hasVideos) {
-                result.add(dir)
-                return // Don't recurse deeper — .nomedia applies to this dir only
-            }
-        }
+        val queue = LinkedList<File>()
+        queue.add(root)
+        var depth = 0
 
-        dir.listFiles()?.forEach {
-            if (it.isDirectory && !it.name.startsWith(".")) {
-                findNomediaRecursive(it, result)
+        while (queue.isNotEmpty() && depth < MAX_DEPTH) {
+            val batch = mutableListOf<File>()
+            while (queue.isNotEmpty() && batch.size < 100) {
+                queue.poll()?.let { batch.add(it) }
             }
+
+            for (dir in batch) {
+                try {
+                    val nomediaFile = File(dir, ".nomedia")
+                    if (nomediaFile.exists()) {
+                        val hasVideos = dir.listFiles()
+                            ?.any { it.isFile && isVideoFile(it.name) } == true
+                        if (hasVideos) {
+                            result.add(dir)
+                            continue // Don't go deeper — .nomedia applies to this dir
+                        }
+                    }
+
+                    val children = dir.listFiles() ?: continue
+                    for (child in children) {
+                        if (child.isDirectory && !child.name.startsWith(".")) {
+                            queue.add(child)
+                        }
+                    }
+                } catch (_: Exception) { }
+            }
+            depth++
         }
     }
 
@@ -286,13 +349,15 @@ class VideoScanner(private val context: Context) {
 
     private fun defaultScanDirs(): List<File> {
         val dirs = mutableListOf<File>()
-
-        // Primary external storage
-        Environment.getExternalStorageDirectory()?.let { dirs.add(it) }
-
-        // Common SD card paths
-        File("/storage").listFiles()?.forEach { dirs.add(it) }
-
+        try {
+            Environment.getExternalStorageDirectory()?.let { dirs.add(it) }
+        } catch (_: Exception) { }
+        try {
+            val storage = File("/storage")
+            if (storage.exists()) {
+                storage.listFiles()?.forEach { dirs.add(it) }
+            }
+        } catch (_: Exception) { }
         return dirs.distinct().filter { it.exists() }
     }
 }

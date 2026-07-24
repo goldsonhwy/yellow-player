@@ -17,6 +17,7 @@ import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.text.input.PasswordVisualTransformation
@@ -38,6 +39,30 @@ fun SambaConfigScreen(navController: NavController) {
     var isDiscovering by remember { mutableStateOf(false) }
     var discoveredHosts by remember { mutableStateOf<List<String>>(emptyList()) }
     var showDiscoveredDialog by remember { mutableStateOf(false) }
+    var scanProgress by remember { mutableStateOf(0f) }
+    val context = LocalContext.current
+
+    // Auto-discovery logic
+    LaunchedEffect(isDiscovering) {
+        if (!isDiscovering) return@LaunchedEffect
+        try {
+            val client = com.goldsonhwy.yellowplayer.smb.SambaClient()
+            scanProgress = 0.05f
+            val result = client.discoverServers { current, total ->
+                scanProgress = current.toFloat() / total
+            }
+            result.onSuccess { hosts ->
+                discoveredHosts = hosts
+                if (hosts.isNotEmpty()) {
+                    showDiscoveredDialog = true
+                }
+            }.onFailure {
+                // Silently handle errors
+            }
+        } catch (_: Exception) { }
+        isDiscovering = false
+        scanProgress = 0f
+    }
 
     Scaffold(
         topBar = {
@@ -67,8 +92,10 @@ fun SambaConfigScreen(navController: NavController) {
             // Auto-discover button
             Card(
                 onClick = {
-                    isDiscovering = true
-                    // TODO: call SambaClient.discoverServers()
+                    if (!isDiscovering) {
+                        isDiscovering = true
+                        discoveredHosts = emptyList()
+                    }
                 },
                 colors = CardDefaults.cardColors(containerColor = DarkSurfaceVariant),
                 shape = MaterialTheme.shapes.medium
@@ -122,6 +149,7 @@ fun SambaConfigScreen(navController: NavController) {
             if (isDiscovering) {
                 Spacer(Modifier.height(16.dp))
                 LinearProgressIndicator(
+                    progress = scanProgress.coerceIn(0f, 1f),
                     modifier = Modifier.fillMaxWidth().height(2.dp),
                     color = Yellow500,
                     trackColor = DarkSurfaceVariant,
@@ -184,6 +212,48 @@ fun SambaConfigScreen(navController: NavController) {
                 }
                 showAddDialog = false
                 editingServer = null
+            }
+        )
+    }
+
+    // Discovered servers dialog
+    if (showDiscoveredDialog && discoveredHosts.isNotEmpty()) {
+        AlertDialog(
+            onDismissRequest = { showDiscoveredDialog = false },
+            containerColor = DarkSurface,
+            titleContentColor = TextPrimary,
+            textContentColor = TextSecondary,
+            title = { Text("发现 ${discoveredHosts.size} 台设备", fontWeight = FontWeight.Bold) },
+            text = {
+                LazyColumn(verticalArrangement = Arrangement.spacedBy(4.dp)) {
+                    items(discoveredHosts) { host ->
+                        Surface(
+                            onClick = {
+                                showDiscoveredDialog = false
+                                editingServer = SambaServer(host = host)
+                            },
+                            color = DarkSurfaceVariant,
+                            shape = MaterialTheme.shapes.small
+                        ) {
+                            Row(
+                                modifier = Modifier.fillMaxWidth().padding(12.dp),
+                                verticalAlignment = Alignment.CenterVertically,
+                                horizontalArrangement = Arrangement.spacedBy(12.dp)
+                            ) {
+                                Icon(Icons.Default.Dns, null, tint = Yellow500, modifier = Modifier.size(24.dp))
+                                Column {
+                                    Text(host, color = TextPrimary, fontSize = 15.sp)
+                                    Text("端口 445", color = TextSecondary, fontSize = 12.sp)
+                                }
+                            }
+                        }
+                    }
+                }
+            },
+            confirmButton = {
+                TextButton(onClick = { showDiscoveredDialog = false }) {
+                    Text("关闭", color = Yellow500)
+                }
             }
         )
     }
