@@ -41,8 +41,10 @@ class PlayerViewModel(application: Application) : AndroidViewModel(application) 
                         val videos = withTimeoutOrNull(60_000L) {
                             withContext(Dispatchers.IO) {
                                 if (source == VideoSource.SAMBA) {
-                                    val raw = repository.listSambaVideosById(folderPath.substringBefore('|').toLongOrNull() ?: 0L, folderPath.substringAfter('|', folderPath)).getOrElse { emptyList() }
-                                    repository.cacheSambaVideosForLocalUse(folderPath.substringBefore('|').toLongOrNull() ?: 0L, raw)
+                                    repository.listSambaVideosById(
+                                        folderPath.substringBefore('|').toLongOrNull() ?: 0L,
+                                        folderPath.substringAfter('|', folderPath)
+                                    ).getOrElse { emptyList() }
                                 } else {
                                     repository.getVideosInLocalFolder(folderPath)
                                 }

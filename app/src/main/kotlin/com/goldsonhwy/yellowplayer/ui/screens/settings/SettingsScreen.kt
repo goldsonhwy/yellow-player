@@ -62,7 +62,7 @@ fun SettingsScreen(navController: NavController) {
                 type = "application/zip"
                 putExtra(Intent.EXTRA_STREAM, uri)
                 putExtra(Intent.EXTRA_SUBJECT, "Yellow Player 调试日志")
-                putExtra(Intent.EXTRA_TEXT, "Yellow Player v0.0.20 调试日志/崩溃日志")
+                putExtra(Intent.EXTRA_TEXT, "Yellow Player v1.0.0 调试日志/崩溃日志")
                 addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)
             }
             context.startActivity(Intent.createChooser(intent, "导出调试日志"))
@@ -166,7 +166,7 @@ fun SettingsScreen(navController: NavController) {
             SettingsItem(
                 icon = Icons.Default.Info,
                 title = "版本",
-                subtitle = "0.0.20",
+                subtitle = "1.0.0",
                 onClick = {}
             )
 

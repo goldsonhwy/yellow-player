@@ -534,7 +534,11 @@ private fun VideoThumbnailCard(
             contentAlignment = Alignment.Center
         ) {
             if (disableThumbnail) {
-                Icon(Icons.Default.Movie, contentDescription = null, tint = Yellow500, modifier = Modifier.size(38.dp))
+                Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                    Icon(Icons.Default.Movie, contentDescription = null, tint = Yellow500, modifier = Modifier.size(38.dp))
+                    Spacer(Modifier.height(6.dp))
+                    Text(formatSize(video.size), color = TextSecondary, fontSize = 11.sp)
+                }
             } else {
                 AsyncImage(
                     model = ImageRequest.Builder(LocalContext.current)
@@ -583,6 +587,12 @@ private fun formatDuration(millis: Long): String {
     val min = totalSec / 60
     val sec = totalSec % 60
     return "%d:%02d".format(min, sec)
+}
+
+private fun formatSize(bytes: Long): String {
+    if (bytes <= 0) return "未知大小"
+    val mb = bytes / 1024.0 / 1024.0
+    return if (mb >= 1024) "%.1fGB".format(mb / 1024.0) else "%.1fMB".format(mb)
 }
 
 @Composable

@@ -32,9 +32,11 @@ import androidx.lifecycle.viewmodel.compose.viewModel
 import androidx.media3.common.MediaItem
 import androidx.media3.common.Player
 import androidx.media3.exoplayer.ExoPlayer
+import androidx.media3.exoplayer.source.DefaultMediaSourceFactory
 import androidx.media3.ui.PlayerView
 import androidx.navigation.NavController
 import com.goldsonhwy.yellowplayer.data.model.VideoSource
+import com.goldsonhwy.yellowplayer.smb.SmbStreamDataSource
 import com.goldsonhwy.yellowplayer.ui.theme.*
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
@@ -72,7 +74,9 @@ fun PlayerScreen(
     }
 
     val player = remember {
-        ExoPlayer.Builder(context).build().apply {
+        ExoPlayer.Builder(context)
+            .setMediaSourceFactory(DefaultMediaSourceFactory(SmbStreamDataSource.Factory(context)))
+            .build().apply {
             playWhenReady = true
             repeatMode = Player.REPEAT_MODE_ONE
         }

@@ -12,8 +12,8 @@ android {
         applicationId = "com.goldsonhwy.yellowplayer"
         minSdk = 26
         targetSdk = 34
-        versionCode = 20
-        versionName = "0.0.20"
+        versionCode = 100
+        versionName = "1.0.0"
 
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
         vectorDrawables {

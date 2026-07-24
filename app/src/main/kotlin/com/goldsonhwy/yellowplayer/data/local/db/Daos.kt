@@ -47,6 +47,9 @@ interface SambaServerDao {
     @Query("SELECT * FROM samba_servers ORDER BY name ASC")
     fun getAllServers(): Flow<List<SambaServerEntity>>
 
+    @Query("SELECT * FROM samba_servers ORDER BY name ASC")
+    fun getAllServersBlocking(): List<SambaServerEntity>
+
     @Query("SELECT * FROM samba_servers WHERE id = :id")
     suspend fun getServer(id: Long): SambaServerEntity?
 
