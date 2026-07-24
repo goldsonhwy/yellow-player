@@ -1,5 +1,6 @@
 package com.goldsonhwy.yellowplayer.ui.screens.directory
 
+import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
@@ -109,11 +110,15 @@ fun SambaConfigScreen(navController: NavController) {
                     horizontalArrangement = Arrangement.spacedBy(12.dp)
                 ) {
                     if (isDiscovering) {
-                        CircularProgressIndicator(
-                            modifier = Modifier.size(24.dp),
-                            color = Yellow500,
-                            strokeWidth = 2.dp
-                        )
+                        Surface(
+                            shape = MaterialTheme.shapes.small,
+                            color = Yellow500.copy(alpha = 0.15f),
+                            modifier = Modifier.size(24.dp)
+                        ) {
+                            Box(contentAlignment = Alignment.Center) {
+                                Text("…", color = Yellow500, fontSize = 14.sp, fontWeight = FontWeight.Bold)
+                            }
+                        }
                     } else {
                         Icon(
                             Icons.Default.Search,
@@ -149,12 +154,19 @@ fun SambaConfigScreen(navController: NavController) {
 
             if (isDiscovering) {
                 Spacer(Modifier.height(16.dp))
-                LinearProgressIndicator(
-                    progress = scanProgress.coerceIn(0f, 1f),
-                    modifier = Modifier.fillMaxWidth().height(2.dp),
-                    color = Yellow500,
-                    trackColor = DarkSurfaceVariant,
-                )
+                Box(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .height(2.dp)
+                        .background(DarkSurfaceVariant)
+                ) {
+                    Box(
+                        modifier = Modifier
+                            .fillMaxWidth(scanProgress.coerceIn(0f, 1f))
+                            .height(2.dp)
+                            .background(Yellow500)
+                    )
+                }
             }
 
             Spacer(Modifier.height(16.dp))

@@ -256,14 +256,19 @@ fun PlayerScreen(
                             progressVal.floatValue = if (dur > 0) player.currentPosition.toFloat() / dur else 0f
                         }
                     }
-                    LinearProgressIndicator(
-                        progress = progressVal.floatValue,
+                    Box(
                         modifier = Modifier
                             .fillMaxWidth()
-                            .height(3.dp),
-                        color = Yellow500,
-                        trackColor = White.copy(alpha = 0.2f),
-                    )
+                            .height(3.dp)
+                            .background(White.copy(alpha = 0.2f))
+                    ) {
+                        Box(
+                            modifier = Modifier
+                                .fillMaxWidth(progressVal.floatValue.coerceIn(0f, 1f))
+                                .height(3.dp)
+                                .background(Yellow500)
+                        )
+                    }
                 }
             }
         }

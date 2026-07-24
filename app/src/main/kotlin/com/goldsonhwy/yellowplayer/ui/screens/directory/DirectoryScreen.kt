@@ -109,10 +109,7 @@ fun DirectoryScreen(
                     contentAlignment = Alignment.Center
                 ) {
                     Column(horizontalAlignment = Alignment.CenterHorizontally) {
-                        CircularProgressIndicator(
-                            color = Yellow500,
-                            strokeWidth = 3.dp
-                        )
+                        SafeLoadingIndicator()
                         Spacer(Modifier.height(12.dp))
                         Text("正在扫描视频…", color = TextSecondary, fontSize = 14.sp)
                     }
@@ -384,4 +381,22 @@ private fun formatDuration(millis: Long): String {
     val min = totalSec / 60
     val sec = totalSec % 60
     return "%d:%02d".format(min, sec)
+}
+
+@Composable
+private fun SafeLoadingIndicator() {
+    // Avoid Material3 CircularProgressIndicator here: v0.0.7 crash logs showed
+    // a NoSuchMethodError inside its keyframes animation on Android SDK 36.
+    Surface(
+        shape = MaterialTheme.shapes.medium,
+        color = DarkSurfaceVariant
+    ) {
+        Text(
+            text = "扫描中",
+            color = Yellow500,
+            fontSize = 13.sp,
+            fontWeight = FontWeight.Bold,
+            modifier = Modifier.padding(horizontal = 14.dp, vertical = 8.dp)
+        )
+    }
 }
