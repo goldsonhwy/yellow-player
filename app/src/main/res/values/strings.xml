@@ -1,0 +1,37 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="app_name">Yellow Player</string>
+    <string name="select_source">选择视频源</string>
+    <string name="local_storage">本地存储</string>
+    <string name="external_storage">外置存储</string>
+    <string name="samba_share">Samba 共享</string>
+    <string name="add_samba">添加 Samba 服务器</string>
+    <string name="settings">设置</string>
+    <string name="playback_speed">播放倍速</string>
+    <string name="long_press_speed">长按倍速</string>
+    <string name="video_sort">视频排序</string>
+    <string name="sort_by_name">按名称</string>
+    <string name="sort_by_date">按日期</string>
+    <string name="sort_by_size">按大小</string>
+    <string name="sort_random">随机</string>
+    <string name="thumbnail_size">缩略图尺寸</string>
+    <string name="clear_cache">清除缓存</string>
+    <string name="favorites">收藏</string>
+    <string name="no_videos_in_folder">此文件夹中没有视频</string>
+    <string name="scanning">正在扫描…</string>
+    <string name="server_address">服务器地址</string>
+    <string name="username">用户名</string>
+    <string name="password">密码</string>
+    <string name="connect">连接</string>
+    <string name="disconnect">断开</string>
+    <string name="server_hint">例如：192.168.1.100</string>
+    <string name="share_name">共享名称</string>
+    <string name="share_hint">例如：Video</string>
+    <string name="auto_discover">自动搜索局域网设备</string>
+    <string name="searching">正在搜索…</string>
+    <string name="no_servers_found">未找到 Samba 服务器</string>
+    <string name="save">保存</string>
+    <string name="cancel">取消</string>
+    <string name="delete">删除</string>
+    <string name="edit">编辑</string>
+</resources>

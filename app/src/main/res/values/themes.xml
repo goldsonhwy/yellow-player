@@ -1,0 +1,13 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <style name="Theme.YellowPlayer" parent="android:Theme.Material.NoActionBar">
+        <item name="android:colorBackground">#FF121212</item>
+        <item name="android:statusBarColor">#FF121212</item>
+        <item name="android:navigationBarColor">#FF121212</item>
+        <item name="android:windowBackground">@color/bg_dark</item>
+    </style>
+
+    <style name="Theme.YellowPlayer.Splash" parent="Theme.YellowPlayer">
+        <item name="android:windowBackground">@color/splash_bg</item>
+    </style>
+</resources>
