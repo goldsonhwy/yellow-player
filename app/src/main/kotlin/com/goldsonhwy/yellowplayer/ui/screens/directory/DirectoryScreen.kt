@@ -1,8 +1,11 @@
 package com.goldsonhwy.yellowplayer.ui.screens.directory
 
 import android.net.Uri
+import android.widget.Toast
+import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.combinedClickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.grid.GridCells
 import androidx.compose.foundation.lazy.grid.LazyVerticalGrid
@@ -32,12 +35,13 @@ import com.goldsonhwy.yellowplayer.data.model.VideoInfo
 import com.goldsonhwy.yellowplayer.data.model.VideoSource
 import com.goldsonhwy.yellowplayer.ui.navigation.Routes
 import com.goldsonhwy.yellowplayer.ui.theme.*
+import java.io.File
 
 /**
  * Directory screen — shows a 3-column grid of video folders or files.
  * Uses ViewModel with real VideoScanner for local storage.
  */
-@OptIn(ExperimentalMaterial3Api::class)
+@OptIn(ExperimentalMaterial3Api::class, ExperimentalFoundationApi::class)
 @Composable
 fun DirectoryScreen(
     navController: NavController,
@@ -52,6 +56,45 @@ fun DirectoryScreen(
     var showSortDialog by remember { mutableStateOf(false) }
     var sortMode by remember { mutableStateOf("name") }
     var moveProgressText by remember { mutableStateOf("") }
+    var selectedPaths by remember { mutableStateOf(setOf<String>()) }
+    var showMoreActions by remember { mutableStateOf(false) }
+    var showProperties by remember { mutableStateOf<VideoInfo?>(null) }
+    var renameTarget by remember { mutableStateOf<VideoInfo?>(null) }
+    var renameText by remember { mutableStateOf("") }
+
+    fun selectedVideos(): List<VideoInfo> = uiState.videos.filter { it.path in selectedPaths }
+    fun clearSelection() { selectedPaths = emptySet() }
+    fun deleteSelected() {
+        selectedVideos().forEach { v -> runCatching { File(v.path).delete() } }
+        Toast.makeText(context, "已删除 ${selectedPaths.size} 个", Toast.LENGTH_SHORT).show()
+        clearSelection()
+    }
+    fun favoriteSelected() {
+        val favDir = context.getSharedPreferences("favorite_move", android.content.Context.MODE_PRIVATE).getString("dir", "").orEmpty()
+        if (favDir.isEmpty()) {
+            Toast.makeText(context, "请先选择收藏目录", Toast.LENGTH_SHORT).show()
+            return
+        }
+        selectedVideos().forEach { v -> runCatching { File(v.path).copyTo(File(favDir, File(v.path).name), overwrite = true) } }
+        Toast.makeText(context, "已批量收藏", Toast.LENGTH_SHORT).show()
+        clearSelection()
+    }
+    fun copyOrCutToFavorite(move: Boolean) {
+        val favDir = context.getSharedPreferences("favorite_move", android.content.Context.MODE_PRIVATE).getString("dir", "").orEmpty()
+        if (favDir.isEmpty()) {
+            Toast.makeText(context, "请先选择收藏目录", Toast.LENGTH_SHORT).show()
+            return
+        }
+        selectedVideos().forEach { v ->
+            runCatching {
+                val src = File(v.path)
+                src.copyTo(File(favDir, src.name), overwrite = true)
+                if (move) src.delete()
+            }
+        }
+        Toast.makeText(context, if (move) "已剪切到收藏目录" else "已复制到收藏目录", Toast.LENGTH_SHORT).show()
+        clearSelection()
+    }
 
     val isFavorites = folderPath == "__favorites__"
     val isRootLevel = folderPath.isEmpty()
@@ -109,7 +152,7 @@ fun DirectoryScreen(
             TopAppBar(
                 title = {
                     Text(
-                        title,
+                        if (selectedPaths.isNotEmpty()) "已选择 ${selectedPaths.size} 个" else title,
                         fontWeight = FontWeight.Bold,
                         color = TextPrimary,
                         maxLines = 1,
@@ -117,14 +160,20 @@ fun DirectoryScreen(
                     )
                 },
                 navigationIcon = {
-                    IconButton(onClick = { navController.popBackStack() }) {
+                    IconButton(onClick = { if (selectedPaths.isNotEmpty()) clearSelection() else navController.popBackStack() }) {
                         Icon(Icons.Default.ArrowBack, "返回", tint = TextPrimary)
                     }
                 },
                 colors = TopAppBarDefaults.topAppBarColors(containerColor = DarkBackground),
                 actions = {
-                    IconButton(onClick = { showSortDialog = true }) {
-                        Icon(Icons.Default.Sort, "排序", tint = TextSecondary)
+                    if (selectedPaths.isNotEmpty()) {
+                        IconButton(onClick = { deleteSelected() }) { Icon(Icons.Default.Delete, "删除", tint = LikeRed) }
+                        IconButton(onClick = { favoriteSelected() }) { Icon(Icons.Default.Favorite, "批量收藏", tint = LikeRed) }
+                        IconButton(onClick = { showMoreActions = true }) { Icon(Icons.Default.MoreVert, "更多", tint = TextSecondary) }
+                    } else {
+                        IconButton(onClick = { showSortDialog = true }) {
+                            Icon(Icons.Default.Sort, "排序", tint = TextSecondary)
+                        }
                     }
                 }
             )
@@ -274,7 +323,14 @@ fun DirectoryScreen(
                     items(sortedVideos, key = { it.path }) { video ->
                         VideoThumbnailCard(
                             video = video,
+                            selected = video.path in selectedPaths,
+                            disableThumbnail = source == VideoSource.SAMBA,
+                            onLongClick = { selectedPaths = selectedPaths + video.path },
                             onClick = {
+                                if (selectedPaths.isNotEmpty()) {
+                                    selectedPaths = if (video.path in selectedPaths) selectedPaths - video.path else selectedPaths + video.path
+                                    return@VideoThumbnailCard
+                                }
                                 val idx = uiState.videos.indexOf(video)
                                 navController.navigate(
                                     Routes.player(source, if (source == VideoSource.SAMBA) "${serverId}|${uiState.currentFolderPath}" else uiState.currentFolderPath, idx)
@@ -285,6 +341,73 @@ fun DirectoryScreen(
                 }
             }
         }
+    }
+
+    if (showMoreActions) {
+        AlertDialog(
+            onDismissRequest = { showMoreActions = false },
+            containerColor = DarkSurface,
+            titleContentColor = TextPrimary,
+            textContentColor = TextSecondary,
+            title = { Text("批量操作", fontWeight = FontWeight.Bold) },
+            text = {
+                Column {
+                    TextButton(onClick = {
+                        showMoreActions = false
+                        val first = selectedVideos().firstOrNull()
+                        if (first != null) showProperties = first
+                    }) { Text("查看属性", color = TextPrimary) }
+                    TextButton(onClick = {
+                        showMoreActions = false
+                        val first = selectedVideos().firstOrNull()
+                        if (first != null) { renameTarget = first; renameText = first.name }
+                    }) { Text("重命名第一个", color = TextPrimary) }
+                    TextButton(onClick = {
+                        showMoreActions = false
+                        copyOrCutToFavorite(move = false)
+                    }) { Text("复制到收藏目录", color = TextPrimary) }
+                    TextButton(onClick = {
+                        showMoreActions = false
+                        copyOrCutToFavorite(move = true)
+                    }) { Text("剪切到收藏目录", color = TextPrimary) }
+                }
+            },
+            confirmButton = { TextButton(onClick = { showMoreActions = false }) { Text("关闭", color = Yellow500) } }
+        )
+    }
+
+    showProperties?.let { v ->
+        AlertDialog(
+            onDismissRequest = { showProperties = null },
+            containerColor = DarkSurface,
+            titleContentColor = TextPrimary,
+            textContentColor = TextSecondary,
+            title = { Text("属性", fontWeight = FontWeight.Bold) },
+            text = { Text("名称：${v.name}\n路径：${v.path}\n大小：${v.size} bytes\n修改时间：${v.dateModified}") },
+            confirmButton = { TextButton(onClick = { showProperties = null }) { Text("关闭", color = Yellow500) } }
+        )
+    }
+
+    renameTarget?.let { v ->
+        AlertDialog(
+            onDismissRequest = { renameTarget = null },
+            containerColor = DarkSurface,
+            titleContentColor = TextPrimary,
+            textContentColor = TextSecondary,
+            title = { Text("重命名", fontWeight = FontWeight.Bold) },
+            text = { OutlinedTextField(value = renameText, onValueChange = { renameText = it }, singleLine = true) },
+            confirmButton = {
+                TextButton(onClick = {
+                    runCatching {
+                        val old = File(v.path)
+                        old.renameTo(File(old.parentFile, renameText))
+                    }
+                    renameTarget = null
+                    clearSelection()
+                }) { Text("保存", color = Yellow500) }
+            },
+            dismissButton = { TextButton(onClick = { renameTarget = null }) { Text("取消", color = TextSecondary) } }
+        )
     }
 
     if (showSortDialog) {
@@ -345,7 +468,7 @@ private fun VideoFolderCard(
                 AsyncImage(
                     model = ImageRequest.Builder(LocalContext.current)
                         .data(Uri.fromFile(java.io.File(folder.thumbnailPath)))
-                        .crossfade(true)
+                        .crossfade(false)
                         .size(180)
                         .build(),
                     contentDescription = folder.name,
@@ -388,17 +511,21 @@ private fun VideoFolderCard(
     }
 }
 
+@OptIn(ExperimentalFoundationApi::class)
 @Composable
 private fun VideoThumbnailCard(
     video: VideoInfo,
+    selected: Boolean = false,
+    disableThumbnail: Boolean = false,
+    onLongClick: () -> Unit = {},
     onClick: () -> Unit
 ) {
     Column(
         modifier = Modifier
             .aspectRatio(0.75f)
             .clip(MaterialTheme.shapes.small)
-            .clickable(onClick = onClick)
-            .background(DarkSurfaceVariant)
+            .combinedClickable(onClick = onClick, onLongClick = onLongClick)
+            .background(if (selected) Yellow500.copy(alpha = 0.35f) else DarkSurfaceVariant)
     ) {
         Box(
             modifier = Modifier
@@ -406,17 +533,20 @@ private fun VideoThumbnailCard(
                 .weight(1f),
             contentAlignment = Alignment.Center
         ) {
-            // Load thumbnail from real video file
-            AsyncImage(
-                model = ImageRequest.Builder(LocalContext.current)
-                    .data(video.fileUri)
-                    .crossfade(true)
-                    .size(180)
-                    .build(),
-                contentDescription = video.name,
-                contentScale = ContentScale.Crop,
-                modifier = Modifier.fillMaxSize()
-            )
+            if (disableThumbnail) {
+                Icon(Icons.Default.Movie, contentDescription = null, tint = Yellow500, modifier = Modifier.size(38.dp))
+            } else {
+                AsyncImage(
+                    model = ImageRequest.Builder(LocalContext.current)
+                        .data(video.fileUri)
+                        .crossfade(false)
+                        .size(180)
+                        .build(),
+                    contentDescription = video.name,
+                    contentScale = ContentScale.Crop,
+                    modifier = Modifier.fillMaxSize()
+                )
+            }
 
             // Duration badge
             if (video.duration > 0) {

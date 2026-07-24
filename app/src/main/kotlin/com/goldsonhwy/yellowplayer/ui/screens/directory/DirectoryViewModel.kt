@@ -164,10 +164,9 @@ class DirectoryViewModel(application: Application) : AndroidViewModel(applicatio
                             repository.listSambaVideosById(serverId, folderPath)
                         }
                         val folders = foldersResult.getOrElse { emptyList() }
-                        val rawVideos = videosResult.getOrElse { emptyList() }
-                        val videos = if (rawVideos.isNotEmpty()) {
-                            withContext(Dispatchers.IO) { repository.cacheSambaVideosForLocalUse(serverId, rawVideos) }
-                        } else emptyList()
+                        // Do NOT pre-cache SMB videos here: large shares can freeze the folder UI.
+                        // Thumbnails are disabled for SMB; video is cached only when the user opens it.
+                        val videos = videosResult.getOrElse { emptyList() }
                         if (foldersResult.isFailure && videosResult.isFailure) {
                             _uiState.value = DirectoryUiState(
                                 isLoading = false,
