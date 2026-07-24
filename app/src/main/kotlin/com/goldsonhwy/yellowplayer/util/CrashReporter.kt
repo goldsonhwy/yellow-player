@@ -76,7 +76,7 @@ object CrashReporter {
             appendLine("Time: ${timestampHuman()}")
             appendLine("Note: $note")
             appendLine("Package: ${context.packageName}")
-            appendLine("App version: 0.0.11")
+            appendLine("App version: 0.0.12")
             appendLine("Android SDK: ${Build.VERSION.SDK_INT}")
             appendLine("Device: ${Build.MANUFACTURER} ${Build.MODEL}")
             appendLine("All files access: $allFilesAccess")

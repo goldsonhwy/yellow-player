@@ -36,9 +36,13 @@ class VideoRepository(private val context: Context) {
 
     suspend fun scanLocalFolders(source: VideoSource = VideoSource.LOCAL): List<VideoFolder> =
         withContext(Dispatchers.IO) {
-            val rootDirs = listOfNotNull(
-                android.os.Environment.getExternalStorageDirectory()
-            ).filter { it.exists() }
+            val savedRoots = context.getSharedPreferences("local_video_folders", Context.MODE_PRIVATE)
+                .getStringSet("paths", emptySet())
+                .orEmpty()
+
+            val rootDirs = savedRoots
+                .map { File(it) }
+                .filter { it.exists() && it.isDirectory }
 
             val folderMap = scanner.scanVideoFolders(rootDirs, source)
             folderMap.map { (dir, videos) ->

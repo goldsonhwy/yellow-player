@@ -106,6 +106,14 @@ class DirectoryViewModel(application: Application) : AndroidViewModel(applicatio
             return
         }
 
+        if (folders.isEmpty()) {
+            _uiState.value = DirectoryUiState(
+                isLoading = false,
+                error = "没有找到含视频的子文件夹。请返回首页重新添加包含视频的文件夹。"
+            )
+            return
+        }
+
         _uiState.value = DirectoryUiState(
             folders = folders,
             isLoading = false,

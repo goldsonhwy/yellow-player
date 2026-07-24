@@ -162,13 +162,13 @@ fun PlayerScreen(
                 modifier = Modifier
                     .align(Alignment.TopCenter)
                     .fillMaxWidth()
-                    .height(3.dp)
+                    .height(5.dp)
                     .background(White.copy(alpha = 0.25f))
             ) {
                 Box(
                     modifier = Modifier
                         .fillMaxWidth(progress.coerceIn(0f, 1f))
-                        .height(3.dp)
+                        .height(5.dp)
                         .background(Yellow500)
                 )
             }
@@ -218,7 +218,7 @@ fun PlayerScreen(
                     },
                     modifier = Modifier
                         .align(Alignment.CenterEnd)
-                        .padding(end = 76.dp)
+                        .padding(end = 132.dp)
                 ) {
                     Icon(
                         if (isFavorite) Icons.Default.Favorite else Icons.Default.FavoriteBorder,

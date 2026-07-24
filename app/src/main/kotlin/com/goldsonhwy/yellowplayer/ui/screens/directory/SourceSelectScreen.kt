@@ -87,7 +87,11 @@ fun SourceSelectScreen(navController: NavController) {
             } catch (_: Exception) { }
             val path = treeUriToPrimaryPath(uri)
             if (path != null) {
-                navController.navigate(Routes.directory(VideoSource.LOCAL, path))
+                val prefs = context.getSharedPreferences("local_video_folders", android.content.Context.MODE_PRIVATE)
+                val old = prefs.getStringSet("paths", emptySet()).orEmpty().toMutableSet()
+                old.add(path)
+                prefs.edit().putStringSet("paths", old).apply()
+                navController.navigate(Routes.directory(VideoSource.LOCAL))
             } else {
                 permissionDialogMessage = "当前只支持手机主存储目录。请选择内部存储中的视频文件夹。"
                 showPermissionDialog = true
@@ -119,7 +123,12 @@ fun SourceSelectScreen(navController: NavController) {
                 pendingSource = source
                 launcherReadStorage.launch(Manifest.permission.READ_EXTERNAL_STORAGE)
             }
-            else -> folderPickerLauncher.launch(null)
+            else -> {
+                val saved = context.getSharedPreferences("local_video_folders", android.content.Context.MODE_PRIVATE)
+                    .getStringSet("paths", emptySet()).orEmpty()
+                if (saved.isNotEmpty()) navController.navigate(Routes.directory(VideoSource.LOCAL))
+                else folderPickerLauncher.launch(null)
+            }
         }
     }
 
@@ -223,7 +232,7 @@ fun SourceSelectScreen(navController: NavController) {
             )
 
             Text(
-                text = "v0.0.11",
+                text = "v0.0.12",
                 color = TextHint,
                 fontSize = 12.sp,
                 modifier = Modifier.align(Alignment.CenterHorizontally)
