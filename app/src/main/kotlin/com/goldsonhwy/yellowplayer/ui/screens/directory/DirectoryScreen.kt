@@ -63,10 +63,26 @@ fun DirectoryScreen(
     var renameText by remember { mutableStateOf("") }
 
     fun selectedVideos(): List<VideoInfo> = uiState.videos.filter { it.path in selectedPaths }
+    fun selectedFolders(): List<VideoFolder> = uiState.folders.filter { it.path in selectedPaths }
     fun clearSelection() { selectedPaths = emptySet() }
     fun deleteSelected() {
+        if (selectedFolders().isNotEmpty() && source == VideoSource.SAMBA) {
+            viewModel.deleteSmbFolders(serverId, selectedFolders().map { it.path })
+            Toast.makeText(context, "正在删除 SMB 文件夹", Toast.LENGTH_SHORT).show()
+            clearSelection()
+            return
+        }
         selectedVideos().forEach { v -> runCatching { File(v.path).delete() } }
         Toast.makeText(context, "已删除 ${selectedPaths.size} 个", Toast.LENGTH_SHORT).show()
+        clearSelection()
+    }
+    fun setSelectedFoldersCommon() {
+        if (source != VideoSource.SAMBA) return
+        val prefs = context.getSharedPreferences("smb_common_folders", android.content.Context.MODE_PRIVATE)
+        val set = prefs.getStringSet("items", emptySet()).orEmpty().toMutableSet()
+        selectedFolders().forEach { f -> set.add("${f.serverId}|${f.path}") }
+        prefs.edit().putStringSet("items", set).apply()
+        Toast.makeText(context, "已设为常用 SMB 文件夹", Toast.LENGTH_SHORT).show()
         clearSelection()
     }
     fun favoriteSelected() {
@@ -167,6 +183,10 @@ fun DirectoryScreen(
                 colors = TopAppBarDefaults.topAppBarColors(containerColor = DarkBackground),
                 actions = {
                     if (selectedPaths.isNotEmpty()) {
+                        if (selectedFolders().isNotEmpty()) {
+                            IconButton(onClick = { selectedPaths = uiState.folders.map { it.path }.toSet() }) { Icon(Icons.Default.SelectAll, "全选", tint = Yellow500) }
+                            IconButton(onClick = { setSelectedFoldersCommon() }) { Icon(Icons.Default.Star, "设为常用", tint = Yellow500) }
+                        }
                         IconButton(onClick = { deleteSelected() }) { Icon(Icons.Default.Delete, "删除", tint = LikeRed) }
                         IconButton(onClick = { favoriteSelected() }) { Icon(Icons.Default.Favorite, "批量收藏", tint = LikeRed) }
                         IconButton(onClick = { showMoreActions = true }) { Icon(Icons.Default.MoreVert, "更多", tint = TextSecondary) }
@@ -283,16 +303,18 @@ fun DirectoryScreen(
                     items(sortedFolders, key = { it.path }) { folder ->
                         VideoFolderCard(
                             folder = folder,
+                            selected = folder.path in selectedPaths,
+                            isCommon = context.getSharedPreferences("smb_common_folders", android.content.Context.MODE_PRIVATE).getStringSet("items", emptySet()).orEmpty().contains("${folder.serverId}|${folder.path}"),
                             onLongClick = {
                                 if (source == VideoSource.SAMBA) {
-                                    val prefs = context.getSharedPreferences("smb_common_folders", android.content.Context.MODE_PRIVATE)
-                                    val set = prefs.getStringSet("items", emptySet()).orEmpty().toMutableSet()
-                                    set.add("${serverId}|${folder.path}")
-                                    prefs.edit().putStringSet("items", set).apply()
-                                    Toast.makeText(context, "已加入常用 SMB 文件夹", Toast.LENGTH_SHORT).show()
+                                    selectedPaths = selectedPaths + folder.path
                                 }
                             },
                             onClick = {
+                                if (selectedPaths.isNotEmpty()) {
+                                    selectedPaths = if (folder.path in selectedPaths) selectedPaths - folder.path else selectedPaths + folder.path
+                                    return@VideoFolderCard
+                                }
                                 if (source == VideoSource.SAMBA) {
                                     navController.navigate(
                                         Routes.sambaBrowse(serverId, folder.path)
@@ -459,6 +481,8 @@ fun DirectoryScreen(
 @Composable
 private fun VideoFolderCard(
     folder: VideoFolder,
+    selected: Boolean = false,
+    isCommon: Boolean = false,
     onLongClick: () -> Unit = {},
     onClick: () -> Unit
 ) {
@@ -467,7 +491,7 @@ private fun VideoFolderCard(
             .aspectRatio(0.75f)
             .clip(MaterialTheme.shapes.small)
             .combinedClickable(onClick = onClick, onLongClick = onLongClick)
-            .background(DarkSurfaceVariant)
+            .background(if (selected) Yellow500.copy(alpha = 0.38f) else DarkSurfaceVariant)
     ) {
         Box(
             modifier = Modifier
@@ -508,6 +532,18 @@ private fun VideoFolderCard(
                     fontSize = 11.sp,
                     modifier = Modifier.padding(horizontal = 4.dp, vertical = 1.dp)
                 )
+            }
+            if (isCommon) {
+                Surface(
+                    modifier = Modifier.align(Alignment.TopStart).padding(4.dp),
+                    shape = MaterialTheme.shapes.extraSmall,
+                    color = Yellow500
+                ) {
+                    Row(modifier = Modifier.padding(horizontal = 5.dp, vertical = 2.dp), verticalAlignment = Alignment.CenterVertically) {
+                        Icon(Icons.Default.Star, null, tint = Black, modifier = Modifier.size(12.dp))
+                        Text("常用", color = Black, fontSize = 10.sp, fontWeight = FontWeight.Bold)
+                    }
+                }
             }
         }
 

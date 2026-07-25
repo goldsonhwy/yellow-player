@@ -157,6 +157,17 @@ class DirectoryViewModel(application: Application) : AndroidViewModel(applicatio
                         }
                     }
                     source == VideoSource.SAMBA -> {
+                        if (folderPath == "__common_smb__") {
+                            val prefs = getApplication<Application>().getSharedPreferences("smb_common_folders", android.content.Context.MODE_PRIVATE)
+                            val folders = prefs.getStringSet("items", emptySet()).orEmpty().mapNotNull { item ->
+                                val parts = item.split('|')
+                                val sid = parts.getOrNull(0)?.toLongOrNull() ?: return@mapNotNull null
+                                val path = parts.getOrNull(1).orEmpty()
+                                VideoFolder(path = path, name = path.trimEnd('/').substringAfterLast('/').ifEmpty { path }, source = VideoSource.SAMBA, serverId = sid)
+                            }
+                            _uiState.value = DirectoryUiState(folders = folders, isLoading = false, isSingleFolder = false, currentFolderPath = folderPath)
+                            return@launch
+                        }
                         val foldersResult = withContext(Dispatchers.IO) {
                             repository.listSambaFoldersById(serverId, folderPath)
                         }
@@ -205,6 +216,12 @@ class DirectoryViewModel(application: Application) : AndroidViewModel(applicatio
         } catch (t: Throwable) {
             Log.w(TAG, "getThumbnailUri failed: $videoPath", t)
             null
+        }
+    }
+
+    fun deleteSmbFolders(serverId: Long, paths: List<String>) {
+        viewModelScope.launch(Dispatchers.IO) {
+            paths.forEach { repository.deleteSmbFolder(serverId, it) }
         }
     }
 }

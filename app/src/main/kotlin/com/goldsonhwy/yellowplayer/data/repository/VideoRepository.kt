@@ -161,6 +161,11 @@ class VideoRepository(private val context: Context) {
         sambaClient.prefetchHeader(server, remotePath).getOrDefault(0)
     }
 
+    suspend fun deleteSmbFolder(serverId: Long, remotePath: String): Boolean = withContext(Dispatchers.IO) {
+        val server = getSambaServer(serverId) ?: return@withContext false
+        sambaClient.deletePath(server, remotePath).getOrDefault(false)
+    }
+
     // ─── Playback Progress ────────────────────────────────────
 
     suspend fun getPlaybackProgress(path: String): Long {

@@ -213,6 +213,17 @@ class SambaClient {
         }
     }
 
+    fun deletePath(server: SambaServer, remotePath: String): Result<Boolean> {
+        return try {
+            val ctx = createContext(server) ?: return Result.failure(IllegalStateException("SMB context failed"))
+            val file = SmbFile(if (remotePath.endsWith("/")) remotePath else "$remotePath/", ctx)
+            file.delete()
+            Result.success(true)
+        } catch (e: Exception) {
+            Result.failure(e)
+        }
+    }
+
     fun cleanup() {
         cifsContext.set(null)
     }
