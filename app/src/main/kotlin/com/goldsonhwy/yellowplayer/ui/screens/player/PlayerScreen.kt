@@ -235,14 +235,15 @@ fun PlayerScreen(
                     val duration = player.duration.takeIf { it > 0 } ?: 0L
                     val screenH = size.height.coerceAtLeast(1)
                     val zone = ((change.position.y / screenH) * 6f).toInt().coerceIn(0, 5)
-                    val deltaMs = when (zone) {
-                        0 -> (dragAmount * 20L).toLong()
-                        1 -> (dragAmount * 60L).toLong()
-                        2 -> (dragAmount * 150L).toLong()
-                        3 -> (dragAmount * 350L).toLong()
-                        4 -> (dragAmount * 750L).toLong()
-                        else -> (duration * (dragAmount / 1200f)).toLong()
+                    val percentPerPx = when (zone) {
+                        0 -> 0.00001f   // 100px ≈ 0.1%
+                        1 -> 0.000025f  // 100px ≈ 0.25%
+                        2 -> 0.00005f   // 100px ≈ 0.5%
+                        3 -> 0.00010f   // 100px ≈ 1%
+                        4 -> 0.00020f   // 100px ≈ 2%
+                        else -> 0.00040f // 100px ≈ 4%，比旧底部约 8.3% 温和一半
                     }
+                    val deltaMs = (duration * dragAmount * percentPerPx).toLong()
                     horizontalSeekDeltaMs += deltaMs
                     seekProgress = if (duration > 0) (horizontalSeekDeltaMs.toFloat() / duration).coerceIn(-0.5f, 0.5f) else 0f
                 }
