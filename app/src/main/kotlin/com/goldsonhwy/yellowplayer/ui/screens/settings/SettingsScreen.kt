@@ -29,7 +29,8 @@ import com.goldsonhwy.yellowplayer.util.CrashReporter
 @Composable
 fun SettingsScreen(navController: NavController) {
     val context = LocalContext.current
-    var longPressSpeed by remember { mutableFloatStateOf(2f) }
+    val playerPrefs = remember { context.getSharedPreferences("player_prefs", android.content.Context.MODE_PRIVATE) }
+    var longPressSpeed by remember { mutableFloatStateOf(playerPrefs.getFloat("long_press_speed", 2f)) }
     var showSpeedDialog by remember { mutableStateOf(false) }
     var showSortDialog by remember { mutableStateOf(false) }
     var currentSort by remember { mutableStateOf("name") }
@@ -62,7 +63,7 @@ fun SettingsScreen(navController: NavController) {
                 type = "application/zip"
                 putExtra(Intent.EXTRA_STREAM, uri)
                 putExtra(Intent.EXTRA_SUBJECT, "Yellow Player 调试日志")
-                putExtra(Intent.EXTRA_TEXT, "Yellow Player v1.0.3 调试日志/崩溃日志")
+                putExtra(Intent.EXTRA_TEXT, "Yellow Player v1.0.4 调试日志/崩溃日志")
                 addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)
             }
             context.startActivity(Intent.createChooser(intent, "导出调试日志"))
@@ -166,7 +167,7 @@ fun SettingsScreen(navController: NavController) {
             SettingsItem(
                 icon = Icons.Default.Info,
                 title = "版本",
-                subtitle = "1.0.3",
+                subtitle = "1.0.4",
                 onClick = {}
             )
 
@@ -180,7 +181,7 @@ fun SettingsScreen(navController: NavController) {
             onDismiss = { showSpeedDialog = false },
             onSelect = { speed ->
                 longPressSpeed = speed
-                showSpeedDialog = false
+                playerPrefs.edit().putFloat("long_press_speed", speed).apply()
             }
         )
     }
@@ -253,51 +254,34 @@ private fun SpeedPickerDialog(
     onDismiss: () -> Unit,
     onSelect: (Float) -> Unit
 ) {
-    val speeds = listOf(1.0f, 1.5f, 2.0f, 3.0f, 4.0f)
+    var value by remember(currentSpeed) { mutableFloatStateOf(currentSpeed.coerceIn(1f, 5f)) }
 
     AlertDialog(
         onDismissRequest = onDismiss,
         containerColor = DarkSurface,
         titleContentColor = TextPrimary,
         textContentColor = TextSecondary,
-        title = { Text("选择长按倍速", fontWeight = FontWeight.Bold) },
+        title = { Text("长按倍速", fontWeight = FontWeight.Bold) },
         text = {
-            Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
-                speeds.forEach { speed ->
-                    Row(
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .padding(vertical = 4.dp),
-                        verticalAlignment = Alignment.CenterVertically
-                    ) {
-                        RadioButton(
-                            selected = currentSpeed == speed,
-                            onClick = { onSelect(speed) },
-                            colors = RadioButtonDefaults.colors(
-                                selectedColor = Yellow500,
-                                unselectedColor = TextSecondary
-                            )
-                        )
-                        Spacer(Modifier.width(8.dp))
-                        Text(
-                            text = "${speed}x",
-                            color = if (currentSpeed == speed) Yellow500 else TextPrimary,
-                            fontSize = 16.sp
-                        )
-                        Spacer(Modifier.weight(1f))
-                        Text(
-                            text = when (speed) {
-                                1.0f -> "正常"
-                                1.5f -> "稍快"
-                                2.0f -> "快速"
-                                3.0f -> "极速"
-                                4.0f -> "疯狂"
-                                else -> ""
-                            },
-                            color = TextHint,
-                            fontSize = 13.sp
-                        )
-                    }
+            Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
+                Text("${"%.1f".format(value)}x", color = Yellow500, fontSize = 28.sp, fontWeight = FontWeight.Bold)
+                Slider(
+                    value = value,
+                    onValueChange = {
+                        value = it.coerceIn(1f, 5f)
+                        onSelect(value)
+                    },
+                    valueRange = 1f..5f,
+                    steps = 0,
+                    colors = SliderDefaults.colors(
+                        thumbColor = Yellow500,
+                        activeTrackColor = Yellow500,
+                        inactiveTrackColor = DarkSurfaceVariant
+                    )
+                )
+                Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
+                    Text("1x", color = TextHint, fontSize = 12.sp)
+                    Text("5x", color = TextHint, fontSize = 12.sp)
                 }
             }
         },

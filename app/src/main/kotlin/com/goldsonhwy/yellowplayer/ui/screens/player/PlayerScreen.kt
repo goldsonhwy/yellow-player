@@ -61,7 +61,7 @@ fun PlayerScreen(
     var isFavorite by remember { mutableStateOf(false) }
     var showLikeAnimation by remember { mutableStateOf(false) }
     var currentSpeed by remember { mutableFloatStateOf(1f) }
-    val longPressSpeed = 2f
+    val longPressSpeed by remember { mutableFloatStateOf(context.getSharedPreferences("player_prefs", android.content.Context.MODE_PRIVATE).getFloat("long_press_speed", 2f)) }
     var seekProgress by remember { mutableFloatStateOf(0f) }
     var progress by remember { mutableFloatStateOf(0f) }
     var bufferedProgress by remember { mutableFloatStateOf(0f) }
