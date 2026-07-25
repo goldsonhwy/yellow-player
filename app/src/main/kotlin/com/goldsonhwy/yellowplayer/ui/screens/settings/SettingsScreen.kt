@@ -31,8 +31,11 @@ import kotlin.math.roundToInt
 fun SettingsScreen(navController: NavController) {
     val context = LocalContext.current
     val playerPrefs = remember { context.getSharedPreferences("player_prefs", android.content.Context.MODE_PRIVATE) }
+    val uiPrefs = remember { context.getSharedPreferences("ui_prefs", android.content.Context.MODE_PRIVATE) }
     var longPressSpeed by remember { mutableFloatStateOf(playerPrefs.getFloat("long_press_speed", 2f)) }
+    var thumbnailSize by remember { mutableIntStateOf(uiPrefs.getInt("thumbnail_size", 180)) }
     var showSpeedDialog by remember { mutableStateOf(false) }
+    var showThumbDialog by remember { mutableStateOf(false) }
     var showSortDialog by remember { mutableStateOf(false) }
     var currentSort by remember { mutableStateOf("name") }
     var favoriteDir by remember {
@@ -64,7 +67,7 @@ fun SettingsScreen(navController: NavController) {
                 type = "application/zip"
                 putExtra(Intent.EXTRA_STREAM, uri)
                 putExtra(Intent.EXTRA_SUBJECT, "Yellow Player 调试日志")
-                putExtra(Intent.EXTRA_TEXT, "Yellow Player v1.0.6 调试日志/崩溃日志")
+                putExtra(Intent.EXTRA_TEXT, "Yellow Player v1.0.7 调试日志/崩溃日志")
                 addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)
             }
             context.startActivity(Intent.createChooser(intent, "导出调试日志"))
@@ -126,8 +129,8 @@ fun SettingsScreen(navController: NavController) {
             SettingsItem(
                 icon = Icons.Default.PhotoSizeSelectLarge,
                 title = "缩略图尺寸",
-                subtitle = "控制网格中缩略图的大小",
-                onClick = { }
+                subtitle = "当前 ${thumbnailSize}px，影响画廊列数与缩略图请求尺寸",
+                onClick = { showThumbDialog = true }
             )
 
             Divider(color = DarkSurfaceVariant, modifier = Modifier.padding(vertical = 4.dp))
@@ -168,7 +171,7 @@ fun SettingsScreen(navController: NavController) {
             SettingsItem(
                 icon = Icons.Default.Info,
                 title = "版本",
-                subtitle = "1.0.6",
+                subtitle = "1.0.7",
                 onClick = {}
             )
 
@@ -194,6 +197,17 @@ fun SettingsScreen(navController: NavController) {
             onSelect = { sort ->
                 currentSort = sort
                 showSortDialog = false
+            }
+        )
+    }
+
+    if (showThumbDialog) {
+        ThumbnailSizeDialog(
+            currentSize = thumbnailSize,
+            onDismiss = { showThumbDialog = false },
+            onSelect = { size ->
+                thumbnailSize = size
+                uiPrefs.edit().putInt("thumbnail_size", size).apply()
             }
         )
     }
@@ -291,6 +305,43 @@ private fun SpeedPickerDialog(
                 Text("完成", color = Yellow500)
             }
         }
+    )
+}
+
+@Composable
+private fun ThumbnailSizeDialog(
+    currentSize: Int,
+    onDismiss: () -> Unit,
+    onSelect: (Int) -> Unit
+) {
+    var value by remember(currentSize) { mutableFloatStateOf(currentSize.toFloat().coerceIn(120f, 260f)) }
+    AlertDialog(
+        onDismissRequest = onDismiss,
+        containerColor = DarkSurface,
+        titleContentColor = TextPrimary,
+        textContentColor = TextSecondary,
+        title = { Text("缩略图尺寸", fontWeight = FontWeight.Bold) },
+        text = {
+            Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
+                Text("${value.roundToInt()}px", color = Yellow500, fontSize = 28.sp, fontWeight = FontWeight.Bold)
+                Slider(
+                    value = value,
+                    onValueChange = {
+                        value = ((it.coerceIn(120f, 260f) / 20f).roundToInt() * 20).toFloat()
+                        onSelect(value.roundToInt())
+                    },
+                    valueRange = 120f..260f,
+                    steps = 6,
+                    colors = SliderDefaults.colors(
+                        thumbColor = Yellow500,
+                        activeTrackColor = Yellow500,
+                        inactiveTrackColor = DarkSurfaceVariant
+                    )
+                )
+                Text("小尺寸显示更多列，大尺寸缩略图更清晰", color = TextHint, fontSize = 12.sp)
+            }
+        },
+        confirmButton = { TextButton(onClick = onDismiss) { Text("完成", color = Yellow500) } }
     )
 }
 

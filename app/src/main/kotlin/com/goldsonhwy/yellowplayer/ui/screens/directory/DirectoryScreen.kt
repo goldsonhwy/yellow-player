@@ -61,6 +61,12 @@ fun DirectoryScreen(
     var showProperties by remember { mutableStateOf<VideoInfo?>(null) }
     var renameTarget by remember { mutableStateOf<VideoInfo?>(null) }
     var renameText by remember { mutableStateOf("") }
+    val thumbnailSize = remember { context.getSharedPreferences("ui_prefs", android.content.Context.MODE_PRIVATE).getInt("thumbnail_size", 180) }
+    val gridColumns = when {
+        thumbnailSize <= 140 -> 4
+        thumbnailSize >= 220 -> 2
+        else -> 3
+    }
 
     fun selectedVideos(): List<VideoInfo> = uiState.videos.filter { it.path in selectedPaths }
     fun selectedFolders(): List<VideoFolder> = uiState.folders.filter { it.path in selectedPaths }
@@ -290,7 +296,7 @@ fun DirectoryScreen(
             // Folder grid (root level)
             !uiState.isSingleFolder && uiState.folders.isNotEmpty() -> {
                 LazyVerticalGrid(
-                    columns = GridCells.Fixed(3),
+                    columns = GridCells.Fixed(gridColumns),
                     modifier = Modifier
                         .fillMaxSize()
                         .padding(padding)
@@ -303,6 +309,7 @@ fun DirectoryScreen(
                     items(sortedFolders, key = { it.path }) { folder ->
                         VideoFolderCard(
                             folder = folder,
+                            thumbnailSize = thumbnailSize,
                             selected = folder.path in selectedPaths,
                             isCommon = context.getSharedPreferences("smb_common_folders", android.content.Context.MODE_PRIVATE).getStringSet("items", emptySet()).orEmpty().contains("${folder.serverId}|${folder.path}"),
                             onLongClick = {
@@ -336,7 +343,7 @@ fun DirectoryScreen(
             // Video grid (inside a folder)
             uiState.isSingleFolder && uiState.videos.isNotEmpty() -> {
                 LazyVerticalGrid(
-                    columns = GridCells.Fixed(3),
+                    columns = GridCells.Fixed(gridColumns),
                     modifier = Modifier
                         .fillMaxSize()
                         .padding(padding)
@@ -354,6 +361,7 @@ fun DirectoryScreen(
                     items(sortedVideos, key = { it.path }) { video ->
                         VideoThumbnailCard(
                             video = video,
+                            thumbnailSize = thumbnailSize,
                             selected = video.path in selectedPaths,
                             disableThumbnail = source == VideoSource.SAMBA,
                             onLongClick = { selectedPaths = selectedPaths + video.path },
@@ -481,6 +489,7 @@ fun DirectoryScreen(
 @Composable
 private fun VideoFolderCard(
     folder: VideoFolder,
+    thumbnailSize: Int = 180,
     selected: Boolean = false,
     isCommon: Boolean = false,
     onLongClick: () -> Unit = {},
@@ -504,7 +513,7 @@ private fun VideoFolderCard(
                     model = ImageRequest.Builder(LocalContext.current)
                         .data(Uri.fromFile(java.io.File(folder.thumbnailPath)))
                         .crossfade(false)
-                        .size(180)
+                        .size(thumbnailSize)
                         .build(),
                     contentDescription = folder.name,
                     contentScale = ContentScale.Crop,
@@ -562,6 +571,7 @@ private fun VideoFolderCard(
 @Composable
 private fun VideoThumbnailCard(
     video: VideoInfo,
+    thumbnailSize: Int = 180,
     selected: Boolean = false,
     disableThumbnail: Boolean = false,
     onLongClick: () -> Unit = {},
@@ -591,7 +601,7 @@ private fun VideoThumbnailCard(
                     model = ImageRequest.Builder(LocalContext.current)
                         .data(video.fileUri)
                         .crossfade(false)
-                        .size(180)
+                        .size(thumbnailSize)
                         .build(),
                     contentDescription = video.name,
                     contentScale = ContentScale.Crop,

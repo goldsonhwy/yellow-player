@@ -255,21 +255,43 @@ fun PlayerScreen(
                             .background(Yellow500)
                     )
                 }
-                androidx.compose.material3.Surface(
+                Row(
                     modifier = Modifier
-                        .align(Alignment.CenterHorizontally)
-                        .padding(top = 4.dp),
-                    shape = androidx.compose.material3.MaterialTheme.shapes.extraLarge,
-                    color = DarkSurfaceVariant
+                        .fillMaxWidth()
+                        .padding(horizontal = 4.dp, vertical = 2.dp),
+                    horizontalArrangement = Arrangement.SpaceEvenly,
+                    verticalAlignment = Alignment.CenterVertically
                 ) {
-                    androidx.compose.material3.Text(
-                        text = "当前倍速 ${"%.1f".format(actualSpeed)}x",
-                        color = Yellow500,
-                        fontSize = 12.sp,
-                        modifier = Modifier.padding(horizontal = 10.dp, vertical = 4.dp)
-                    )
-                }
-            }
+                    listOf(0.5f, 1f, 1.5f, 2f, 3f, 4f).forEach { speed ->
+                        androidx.compose.material3.Surface(
+                            modifier = Modifier.clickable {
+                                currentSpeed = speed
+                                actualSpeed = speed
+                                player.setPlaybackSpeed(speed)
+                            },
+                            shape = androidx.compose.material3.MaterialTheme.shapes.extraLarge,
+                            color = if (currentSpeed == speed) Yellow500 else DarkSurfaceVariant
+                        ) {
+                            androidx.compose.material3.Text(
+                                text = if (speed == 1f) "正常" else "${speed}x",
+                                color = if (currentSpeed == speed) Black else White,
+                                fontSize = 11.sp,
+                                modifier = Modifier.padding(horizontal = 7.dp, vertical = 3.dp)
+                            )
+                        }
+                    }
+                    androidx.compose.material3.Surface(
+                        shape = androidx.compose.material3.MaterialTheme.shapes.extraLarge,
+                        color = DarkSurfaceVariant
+                    ) {
+                        androidx.compose.material3.Text(
+                            text = "${"%.1f".format(actualSpeed)}x",
+                            color = Yellow500,
+                            fontSize = 11.sp,
+                            modifier = Modifier.padding(horizontal = 7.dp, vertical = 3.dp)
+                        )
+                    }
+                }            }
         }
 
         if (uiState.isLoading) {

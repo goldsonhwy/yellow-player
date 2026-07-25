@@ -9,6 +9,8 @@ import android.os.Build
 import android.os.Environment
 import android.provider.DocumentsContract
 import android.provider.Settings
+import android.app.Activity
+import androidx.activity.compose.BackHandler
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.clickable
@@ -46,6 +48,9 @@ fun SourceSelectScreen(navController: NavController) {
     var permissionDialogMessage by remember { mutableStateOf("") }
     var pendingSource by remember { mutableStateOf<VideoSource?>(null) }
     var showFolderManager by remember { mutableStateOf(false) }
+    var showExitDialog by remember { mutableStateOf(false) }
+
+    BackHandler { showExitDialog = true }
 
     fun refreshSavedFolders() {
         savedFolders = prefs.getStringSet("paths", emptySet()).orEmpty().toList().sorted()
@@ -228,7 +233,7 @@ fun SourceSelectScreen(navController: NavController) {
                 fontSize = 12.sp,
                 modifier = Modifier.fillMaxWidth().padding(horizontal = 4.dp)
             )
-            Text("v1.0.6", color = TextHint, fontSize = 12.sp, modifier = Modifier.align(Alignment.CenterHorizontally))
+            Text("v1.0.7", color = TextHint, fontSize = 12.sp, modifier = Modifier.align(Alignment.CenterHorizontally))
         }
     }
 
@@ -305,6 +310,23 @@ fun SourceSelectScreen(navController: NavController) {
                 ) { Text(if (Build.VERSION.SDK_INT >= 30 && !Environment.isExternalStorageManager()) "去授权" else "重试", color = Black) }
             },
             dismissButton = { TextButton(onClick = { showPermissionDialog = false }) { Text("取消", color = TextSecondary) } }
+        )
+    }
+
+    if (showExitDialog) {
+        AlertDialog(
+            onDismissRequest = { showExitDialog = false },
+            containerColor = DarkSurface,
+            titleContentColor = TextPrimary,
+            textContentColor = TextSecondary,
+            title = { Text("退出程序？", fontWeight = FontWeight.Bold) },
+            text = { Text("确定要退出 Yellow Player 吗？") },
+            confirmButton = {
+                TextButton(onClick = { (context as? Activity)?.finish() }) { Text("退出", color = LikeRed) }
+            },
+            dismissButton = {
+                TextButton(onClick = { showExitDialog = false }) { Text("取消", color = Yellow500) }
+            }
         )
     }
 }
