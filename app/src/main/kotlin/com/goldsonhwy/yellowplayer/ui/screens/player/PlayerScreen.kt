@@ -64,6 +64,7 @@ fun PlayerScreen(
     val longPressSpeed = 2f
     var seekProgress by remember { mutableFloatStateOf(0f) }
     var progress by remember { mutableFloatStateOf(0f) }
+    var bufferedProgress by remember { mutableFloatStateOf(0f) }
 
     LaunchedEffect(source, folderPath) {
         viewModel.loadVideos(source, folderPath)
@@ -98,6 +99,15 @@ fun PlayerScreen(
             delay(400)
             val dur = player.duration
             progress = if (dur > 0) player.currentPosition.toFloat() / dur else 0f
+            bufferedProgress = (player.bufferedPercentage / 100f).coerceIn(0f, 1f)
+        }
+    }
+
+    LaunchedEffect(source, currentIndex, videos) {
+        if (source == VideoSource.SAMBA) {
+            val serverId = folderPath.substringBefore('|').toLongOrNull() ?: 0L
+            val next = videos.getOrNull(currentIndex + 1)
+            if (serverId > 0 && next != null) viewModel.prefetchSmbHeaderAsync(serverId, next.path)
         }
     }
 
@@ -224,6 +234,12 @@ fun PlayerScreen(
                         .height(8.dp)
                         .background(Yellow500.copy(alpha = 0.22f))
                 ) {
+                    Box(
+                        modifier = Modifier
+                            .fillMaxWidth(bufferedProgress.coerceIn(0f, 1f))
+                            .height(8.dp)
+                            .background(White.copy(alpha = 0.35f))
+                    )
                     Box(
                         modifier = Modifier
                             .fillMaxWidth(progress.coerceIn(0.02f, 1f))

@@ -84,4 +84,11 @@ class PlayerViewModel(application: Application) : AndroidViewModel(application) 
             repository.moveFavoriteAfterRelease(path)
         }
     }
+
+    fun prefetchSmbHeaderAsync(serverId: Long, remotePath: String) {
+        if (serverId <= 0 || remotePath.isBlank()) return
+        viewModelScope.launch(Dispatchers.IO) {
+            repository.prefetchSmbHeader(serverId, remotePath)
+        }
+    }
 }

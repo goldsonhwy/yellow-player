@@ -16,6 +16,7 @@ import jcifs.context.BaseContext
 import jcifs.smb.NtlmPasswordAuthenticator
 import jcifs.smb.SmbFile
 import java.io.IOException
+import java.io.BufferedInputStream
 import java.io.InputStream
 import java.util.Properties
 
@@ -40,7 +41,7 @@ class SmbStreamDataSource(private val appContext: Context) : BaseDataSource(true
             val length = file.length()
             val start = dataSpec.position
             val requested = dataSpec.length
-            val stream = file.inputStream
+            val stream = BufferedInputStream(file.inputStream, 1024 * 1024)
             if (start > 0) stream.skip(start)
             inputStream = stream
             bytesRemaining = if (requested != C.LENGTH_UNSET.toLong()) requested else length - start
@@ -95,6 +96,9 @@ class SmbStreamDataSource(private val appContext: Context) : BaseDataSource(true
             setProperty("jcifs.smb.client.disableSMB1", "true")
             setProperty("jcifs.smb.client.responseTimeout", "12000")
             setProperty("jcifs.smb.client.soTimeout", "12000")
+            setProperty("jcifs.smb.client.rcv_buf_size", "1048576")
+            setProperty("jcifs.smb.client.snd_buf_size", "1048576")
+            setProperty("jcifs.smb.client.connTimeout", "8000")
         }
         return BaseContext(PropertyConfiguration(props)).withCredentials(auth)
     }

@@ -156,6 +156,11 @@ class VideoRepository(private val context: Context) {
         videos.map { cacheSambaVideoForLocalPlayback(serverId, it) }
     }
 
+    suspend fun prefetchSmbHeader(serverId: Long, remotePath: String): Int = withContext(Dispatchers.IO) {
+        val server = getSambaServer(serverId) ?: return@withContext 0
+        sambaClient.prefetchHeader(server, remotePath).getOrDefault(0)
+    }
+
     // ─── Playback Progress ────────────────────────────────────
 
     suspend fun getPlaybackProgress(path: String): Long {

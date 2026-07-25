@@ -18,6 +18,7 @@ import kotlinx.coroutines.coroutineScope
 import kotlinx.coroutines.withContext
 import java.io.File
 import java.io.FileOutputStream
+import java.io.BufferedInputStream
 import java.net.Inet4Address
 import java.net.InetAddress
 import java.net.InetSocketAddress
@@ -188,6 +189,25 @@ class SambaClient {
             val ctx = createContext(server)
             val smbFile = SmbFile(remotePath, ctx)
             Result.success(smbFile.inputStream as SmbFileInputStream)
+        } catch (e: Exception) {
+            Result.failure(e)
+        }
+    }
+
+    fun prefetchHeader(server: SambaServer, remotePath: String, bytes: Int = 512 * 1024): Result<Int> {
+        return try {
+            val ctx = createContext(server) ?: return Result.failure(IllegalStateException("SMB context failed"))
+            val smbFile = SmbFile(remotePath, ctx)
+            var total = 0
+            BufferedInputStream(smbFile.inputStream, 1024 * 1024).use { input ->
+                val buffer = ByteArray(64 * 1024)
+                while (total < bytes) {
+                    val read = input.read(buffer, 0, minOf(buffer.size, bytes - total))
+                    if (read <= 0) break
+                    total += read
+                }
+            }
+            Result.success(total)
         } catch (e: Exception) {
             Result.failure(e)
         }
