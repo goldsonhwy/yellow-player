@@ -234,14 +234,12 @@ fun PlayerScreen(
                     change.consume()
                     val duration = player.duration.takeIf { it > 0 } ?: 0L
                     val screenH = size.height.coerceAtLeast(1)
-                    val zone = ((change.position.y / screenH) * 6f).toInt().coerceIn(0, 5)
+                    val zone = ((change.position.y / screenH) * 4f).toInt().coerceIn(0, 3)
                     val percentPerPx = when (zone) {
-                        0 -> 0.00001f   // 100px ≈ 0.1%
-                        1 -> 0.000025f  // 100px ≈ 0.25%
-                        2 -> 0.00005f   // 100px ≈ 0.5%
-                        3 -> 0.00010f   // 100px ≈ 1%
-                        4 -> 0.00020f   // 100px ≈ 2%
-                        else -> 0.00040f // 100px ≈ 4%，比旧底部约 8.3% 温和一半
+                        0 -> 0.00010f  // 最上区：100px ≈ 1%
+                        1 -> 0.00020f  // 第二区：100px ≈ 2%
+                        2 -> 0.00050f  // 第三区：100px ≈ 5%
+                        else -> 0.00100f // 最下区：100px ≈ 10%
                     }
                     val deltaMs = (duration * dragAmount * percentPerPx).toLong()
                     horizontalSeekDeltaMs += deltaMs
