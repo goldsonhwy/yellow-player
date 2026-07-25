@@ -283,6 +283,15 @@ fun DirectoryScreen(
                     items(sortedFolders, key = { it.path }) { folder ->
                         VideoFolderCard(
                             folder = folder,
+                            onLongClick = {
+                                if (source == VideoSource.SAMBA) {
+                                    val prefs = context.getSharedPreferences("smb_common_folders", android.content.Context.MODE_PRIVATE)
+                                    val set = prefs.getStringSet("items", emptySet()).orEmpty().toMutableSet()
+                                    set.add("${serverId}|${folder.path}")
+                                    prefs.edit().putStringSet("items", set).apply()
+                                    Toast.makeText(context, "已加入常用 SMB 文件夹", Toast.LENGTH_SHORT).show()
+                                }
+                            },
                             onClick = {
                                 if (source == VideoSource.SAMBA) {
                                     navController.navigate(
@@ -446,16 +455,18 @@ fun DirectoryScreen(
     }
 }
 
+@OptIn(ExperimentalFoundationApi::class)
 @Composable
 private fun VideoFolderCard(
     folder: VideoFolder,
+    onLongClick: () -> Unit = {},
     onClick: () -> Unit
 ) {
     Column(
         modifier = Modifier
             .aspectRatio(0.75f)
             .clip(MaterialTheme.shapes.small)
-            .clickable(onClick = onClick)
+            .combinedClickable(onClick = onClick, onLongClick = onLongClick)
             .background(DarkSurfaceVariant)
     ) {
         Box(
@@ -571,14 +582,29 @@ private fun VideoThumbnailCard(
             }
         }
 
-        Text(
-            text = video.name,
-            color = TextPrimary,
-            fontSize = 11.sp,
-            maxLines = 1,
-            overflow = TextOverflow.Ellipsis,
-            modifier = Modifier.padding(horizontal = 6.dp, vertical = 4.dp)
-        )
+        Row(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(horizontal = 6.dp, vertical = 4.dp),
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            Text(
+                text = video.name,
+                color = TextPrimary,
+                fontSize = 11.sp,
+                maxLines = 1,
+                overflow = TextOverflow.Ellipsis,
+                modifier = Modifier.weight(1f)
+            )
+            if (!disableThumbnail) {
+                Text(
+                    text = formatSize(video.size),
+                    color = Yellow500,
+                    fontSize = 10.sp,
+                    maxLines = 1
+                )
+            }
+        }
     }
 }
 

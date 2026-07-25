@@ -231,19 +231,19 @@ fun PlayerScreen(
                 Box(
                     modifier = Modifier
                         .fillMaxWidth()
-                        .height(8.dp)
+                        .height(5.dp)
                         .background(Yellow500.copy(alpha = 0.22f))
                 ) {
                     Box(
                         modifier = Modifier
                             .fillMaxWidth(bufferedProgress.coerceIn(0f, 1f))
-                            .height(8.dp)
+                            .height(5.dp)
                             .background(White.copy(alpha = 0.35f))
                     )
                     Box(
                         modifier = Modifier
                             .fillMaxWidth(progress.coerceIn(0.02f, 1f))
-                            .height(8.dp)
+                            .height(5.dp)
                             .background(Yellow500)
                     )
                 }

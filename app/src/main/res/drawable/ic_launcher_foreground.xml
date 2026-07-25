@@ -4,12 +4,13 @@
     android:height="108dp"
     android:viewportWidth="108"
     android:viewportHeight="108">
-    <!-- Background circle -->
     <path
-        android:fillColor="#FFFFC107"
-        android:pathData="M54,54m-40,0a40,40 0,1 1,80 0a40,40 0,1 1,-80 0" />
-    <!-- Play triangle -->
+        android:fillColor="#FF000000"
+        android:pathData="M54,54m-48,0a48,48 0,1 1,96 0a48,48 0,1 1,-96 0" />
     <path
-        android:fillColor="#FF121212"
-        android:pathData="M44,38 L44,70 L72,54 Z" />
+        android:fillColor="#FFFF9900"
+        android:pathData="M24,32 L48,32 L48,48 L60,48 L60,32 L84,32 L84,76 L60,76 L60,58 L48,58 L48,76 L24,76 Z" />
+    <path
+        android:fillColor="#FF000000"
+        android:pathData="M68,44 L68,64 L82,54 Z" />
 </vector>

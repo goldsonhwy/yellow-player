@@ -1,14 +1,14 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
-    <color name="yellow_primary">#FFFFC107</color>
-    <color name="yellow_dark">#FFFFA000</color>
-    <color name="yellow_light">#FFFFF176</color>
-    <color name="bg_dark">#FF121212</color>
-    <color name="bg_dark_surface">#FF1E1E1E</color>
-    <color name="bg_dark_card">#FF2C2C2C</color>
-    <color name="text_primary_dark">#FFE0E0E0</color>
-    <color name="text_secondary_dark">#FF9E9E9E</color>
+    <color name="yellow_primary">#FFFF9900</color>
+    <color name="yellow_dark">#FFE68A00</color>
+    <color name="yellow_light">#FFFFC266</color>
+    <color name="bg_dark">#FF000000</color>
+    <color name="bg_dark_surface">#FF111111</color>
+    <color name="bg_dark_card">#FF1B1B1B</color>
+    <color name="text_primary_dark">#FFFFFFFF</color>
+    <color name="text_secondary_dark">#FFBDBDBD</color>
     <color name="accent_white">#FFFFFFFF</color>
-    <color name="like_red">#FFFF1744</color>
-    <color name="splash_bg">#FF121212</color>
+    <color name="like_red">#FFFF2D55</color>
+    <color name="splash_bg">#FF000000</color>
 </resources>

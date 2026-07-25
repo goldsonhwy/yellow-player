@@ -40,6 +40,7 @@ fun SourceSelectScreen(navController: NavController) {
     val prefs = remember { context.getSharedPreferences("local_video_folders", Context.MODE_PRIVATE) }
     val favoritePrefs = remember { context.getSharedPreferences("favorite_move", Context.MODE_PRIVATE) }
     var savedFolders by remember { mutableStateOf(prefs.getStringSet("paths", emptySet()).orEmpty().toList().sorted()) }
+    var commonSmbFolders by remember { mutableStateOf(context.getSharedPreferences("smb_common_folders", Context.MODE_PRIVATE).getStringSet("items", emptySet()).orEmpty().toList().sorted()) }
     var favoriteDir by remember { mutableStateOf(favoritePrefs.getString("dir", "").orEmpty()) }
     var showPermissionDialog by remember { mutableStateOf(false) }
     var permissionDialogMessage by remember { mutableStateOf("") }
@@ -187,11 +188,19 @@ fun SourceSelectScreen(navController: NavController) {
                 onClick = { favoriteDirPickerLauncher.launch(null) }
             )
 
+            val common = commonSmbFolders.firstOrNull()
             SourceCard(
-                title = "外置存储",
-                subtitle = "USB / OTG / SD 卡（需手动选择目录）",
-                icon = Icons.Default.SdCard,
-                onClick = { navController.navigate(Routes.directory(VideoSource.EXTERNAL)) }
+                title = "常用 SMB 文件夹",
+                subtitle = common?.substringAfterLast('|') ?: "在 Samba 文件夹页面长按文件夹可收藏到这里",
+                icon = Icons.Default.Star,
+                onClick = {
+                    if (common != null) {
+                        val parts = common.split('|')
+                        val sid = parts.getOrNull(0)?.toLongOrNull() ?: 0L
+                        val path = parts.getOrNull(1).orEmpty()
+                        navController.navigate(Routes.sambaBrowse(sid, path))
+                    } else navController.navigate(Routes.SAMBA_CONFIG)
+                }
             )
 
             SourceCard(
@@ -219,7 +228,7 @@ fun SourceSelectScreen(navController: NavController) {
                 fontSize = 12.sp,
                 modifier = Modifier.fillMaxWidth().padding(horizontal = 4.dp)
             )
-            Text("v1.0.1", color = TextHint, fontSize = 12.sp, modifier = Modifier.align(Alignment.CenterHorizontally))
+            Text("v1.0.2", color = TextHint, fontSize = 12.sp, modifier = Modifier.align(Alignment.CenterHorizontally))
         }
     }
 
