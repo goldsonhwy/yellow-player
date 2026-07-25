@@ -432,18 +432,33 @@ fun PlayerScreen(
                     )
                 }
                 .pointerInput(Unit) {
+                    var horizontalSeekDeltaMs = 0L
                     detectHorizontalDragGestures(
+                        onDragStart = { horizontalSeekDeltaMs = 0L },
                         onDragEnd = {
                             val duration = player.duration
-                            if (duration > 0 && seekProgress != 0f) {
-                                val seekTo = (player.currentPosition + duration * seekProgress).toLong()
-                                player.seekTo(seekTo.coerceIn(0, duration))
+                            if (duration > 0 && horizontalSeekDeltaMs != 0L) {
+                                val seekTo = (player.currentPosition + horizontalSeekDeltaMs).coerceIn(0L, duration)
+                                player.seekTo(seekTo)
                             }
                             seekProgress = 0f
+                            horizontalSeekDeltaMs = 0L
                         },
                         onHorizontalDrag = { change, dragAmount ->
                             change.consume()
-                            seekProgress = (seekProgress + dragAmount / 1200f).coerceIn(-0.5f, 0.5f)
+                            val duration = player.duration.takeIf { it > 0 } ?: 0L
+                            val screenH = size.height.coerceAtLeast(1)
+                            val zone = ((change.position.y / screenH) * 6f).toInt().coerceIn(0, 5)
+                            val deltaMs = when (zone) {
+                                0 -> (dragAmount * 20L).toLong()          // 顶部：秒级/极精细
+                                1 -> (dragAmount * 60L).toLong()
+                                2 -> (dragAmount * 150L).toLong()
+                                3 -> (dragAmount * 350L).toLong()
+                                4 -> (dragAmount * 750L).toLong()
+                                else -> (duration * (dragAmount / 1200f)).toLong() // 底部：保留原粗粒度规则
+                            }
+                            horizontalSeekDeltaMs += deltaMs
+                            seekProgress = if (duration > 0) (horizontalSeekDeltaMs.toFloat() / duration).coerceIn(-0.5f, 0.5f) else 0f
                         }
                     )
                 }
