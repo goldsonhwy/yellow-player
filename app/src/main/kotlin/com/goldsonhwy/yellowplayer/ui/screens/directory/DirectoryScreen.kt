@@ -317,7 +317,7 @@ fun DirectoryScreen(
                                 }
                                 if (source == VideoSource.SAMBA) {
                                     navController.navigate(
-                                        Routes.sambaBrowse(serverId, folder.path)
+                                        Routes.sambaBrowse(folder.serverId.takeIf { it > 0 } ?: serverId, folder.path)
                                     )
                                 } else {
                                     // Open the folder grid first. Older builds jumped directly

@@ -23,6 +23,9 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.input.pointer.pointerInput
+import androidx.compose.foundation.gestures.awaitEachGesture
+import androidx.compose.foundation.gestures.awaitFirstDown
+import androidx.compose.foundation.gestures.waitForUpOrCancellation
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
@@ -40,6 +43,7 @@ import com.goldsonhwy.yellowplayer.smb.SmbStreamDataSource
 import com.goldsonhwy.yellowplayer.ui.theme.*
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.withTimeoutOrNull
 import java.io.File
 
 @Composable
@@ -369,12 +373,23 @@ fun PlayerScreen(
                         },
                         onDoubleTap = {
                             toggleCurrentFavorite(showAnimation = true)
-                        },
-                        onLongPress = {
-                            currentSpeed = longPressSpeed
-                            player.setPlaybackSpeed(longPressSpeed)
                         }
                     )
+                }
+                .pointerInput(currentSpeed, longPressSpeed) {
+                    awaitEachGesture {
+                        awaitFirstDown(requireUnconsumed = false)
+                        val releasedBeforeLongPress = withTimeoutOrNull(520L) {
+                            waitForUpOrCancellation()
+                        }
+                        if (releasedBeforeLongPress == null) {
+                            val speedBeforeLongPress = currentSpeed
+                            val temporarySpeed = (speedBeforeLongPress * longPressSpeed).coerceIn(0.1f, 25f)
+                            player.setPlaybackSpeed(temporarySpeed)
+                            waitForUpOrCancellation()
+                            player.setPlaybackSpeed(speedBeforeLongPress)
+                        }
+                    }
                 }
                 .pointerInput(videos, currentIndex) {
                     var totalDrag = 0f

@@ -21,6 +21,7 @@ object Routes {
     const val PLAYER = "player/{source}/{folderPath}/{startIndex}"
     const val SETTINGS = "settings"
     const val SAMBA_CONFIG = "samba_config"
+    const val SMB_COMMON = "smb_common"
     const val SAMBA_BROWSE = "samba_browse/{serverId}/{folderPath}"
 
     private const val ROOT_PLACEHOLDER = "_root"
@@ -120,6 +121,15 @@ fun AppNavGraph(navController: NavHostController) {
 
         composable(Routes.SAMBA_CONFIG) {
             SambaConfigScreen(navController)
+        }
+
+        composable(Routes.SMB_COMMON) {
+            DirectoryScreen(
+                navController = navController,
+                source = VideoSource.SAMBA,
+                serverId = 0L,
+                folderPath = "__common_smb__"
+            )
         }
 
         composable(

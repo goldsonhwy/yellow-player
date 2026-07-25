@@ -195,7 +195,7 @@ fun SourceSelectScreen(navController: NavController) {
                 icon = Icons.Default.Star,
                 onClick = {
                     if (common != null) {
-                        navController.navigate(Routes.sambaBrowse(0L, "__common_smb__"))
+                        navController.navigate(Routes.SMB_COMMON)
                     } else navController.navigate(Routes.SAMBA_CONFIG)
                 }
             )
@@ -225,7 +225,7 @@ fun SourceSelectScreen(navController: NavController) {
                 fontSize = 12.sp,
                 modifier = Modifier.fillMaxWidth().padding(horizontal = 4.dp)
             )
-            Text("v1.0.4", color = TextHint, fontSize = 12.sp, modifier = Modifier.align(Alignment.CenterHorizontally))
+            Text("v1.0.5", color = TextHint, fontSize = 12.sp, modifier = Modifier.align(Alignment.CenterHorizontally))
         }
     }
 
