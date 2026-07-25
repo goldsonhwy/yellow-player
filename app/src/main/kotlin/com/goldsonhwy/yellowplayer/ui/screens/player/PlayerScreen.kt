@@ -45,6 +45,7 @@ import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withTimeoutOrNull
 import java.io.File
+import kotlin.math.roundToInt
 
 @Composable
 fun PlayerScreen(
@@ -69,6 +70,8 @@ fun PlayerScreen(
     var seekProgress by remember { mutableFloatStateOf(0f) }
     var progress by remember { mutableFloatStateOf(0f) }
     var bufferedProgress by remember { mutableFloatStateOf(0f) }
+    var actualSpeed by remember { mutableFloatStateOf(1f) }
+    var lastShortTapAt by remember { mutableLongStateOf(0L) }
 
     LaunchedEffect(source, folderPath) {
         viewModel.loadVideos(source, folderPath)
@@ -94,6 +97,7 @@ fun PlayerScreen(
             player.setMediaItem(MediaItem.fromUri(video.fileUri), 0L)
             player.prepare()
             player.setPlaybackSpeed(currentSpeed)
+            actualSpeed = currentSpeed
             player.playWhenReady = true
         }
     }
@@ -251,30 +255,19 @@ fun PlayerScreen(
                             .background(Yellow500)
                     )
                 }
-                Row(
+                androidx.compose.material3.Surface(
                     modifier = Modifier
-                        .fillMaxWidth()
-                        .padding(horizontal = 4.dp, vertical = 2.dp),
-                    horizontalArrangement = Arrangement.SpaceEvenly,
-                    verticalAlignment = Alignment.CenterVertically
+                        .align(Alignment.CenterHorizontally)
+                        .padding(top = 4.dp),
+                    shape = androidx.compose.material3.MaterialTheme.shapes.extraLarge,
+                    color = DarkSurfaceVariant
                 ) {
-                    listOf(0.5f, 1f, 1.5f, 2f, 3f, 4f, 5f).forEach { speed ->
-                        androidx.compose.material3.Surface(
-                            modifier = Modifier.clickable {
-                                currentSpeed = speed
-                                player.setPlaybackSpeed(speed)
-                            },
-                            shape = androidx.compose.material3.MaterialTheme.shapes.extraLarge,
-                            color = if (currentSpeed == speed) Yellow500 else DarkSurfaceVariant
-                        ) {
-                            androidx.compose.material3.Text(
-                                text = if (speed == 1f) "正常" else "${speed}x",
-                                color = if (currentSpeed == speed) Black else White,
-                                fontSize = 11.sp,
-                                modifier = Modifier.padding(horizontal = 7.dp, vertical = 3.dp)
-                            )
-                        }
-                    }
+                    androidx.compose.material3.Text(
+                        text = "当前倍速 ${"%.1f".format(actualSpeed)}x",
+                        color = Yellow500,
+                        fontSize = 12.sp,
+                        modifier = Modifier.padding(horizontal = 10.dp, vertical = 4.dp)
+                    )
                 }
             }
         }
@@ -366,28 +359,35 @@ fun PlayerScreen(
                 .padding(top = 44.dp)
                 .navigationBarsPadding()
                 .padding(bottom = 92.dp)
-                .pointerInput(videos, currentIndex) {
-                    detectTapGestures(
-                        onTap = {
-                            if (player.isPlaying) player.pause() else player.play()
-                        },
-                        onDoubleTap = {
-                            toggleCurrentFavorite(showAnimation = true)
-                        }
-                    )
-                }
                 .pointerInput(currentSpeed, longPressSpeed) {
                     awaitEachGesture {
                         awaitFirstDown(requireUnconsumed = false)
                         val releasedBeforeLongPress = withTimeoutOrNull(520L) {
                             waitForUpOrCancellation()
                         }
-                        if (releasedBeforeLongPress == null) {
+                        if (releasedBeforeLongPress != null) {
+                            val now = System.currentTimeMillis()
+                            if (now - lastShortTapAt <= 320L) {
+                                lastShortTapAt = 0L
+                                toggleCurrentFavorite(showAnimation = true)
+                            } else {
+                                lastShortTapAt = now
+                                scope.launch {
+                                    delay(330L)
+                                    if (lastShortTapAt == now) {
+                                        if (player.isPlaying) player.pause() else player.play()
+                                        lastShortTapAt = 0L
+                                    }
+                                }
+                            }
+                        } else {
                             val speedBeforeLongPress = currentSpeed
                             val temporarySpeed = (speedBeforeLongPress * longPressSpeed).coerceIn(0.1f, 25f)
                             player.setPlaybackSpeed(temporarySpeed)
+                            actualSpeed = temporarySpeed
                             waitForUpOrCancellation()
                             player.setPlaybackSpeed(speedBeforeLongPress)
+                            actualSpeed = speedBeforeLongPress
                         }
                     }
                 }

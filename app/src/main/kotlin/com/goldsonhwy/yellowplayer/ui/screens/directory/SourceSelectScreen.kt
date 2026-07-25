@@ -148,11 +148,7 @@ fun SourceSelectScreen(navController: NavController) {
             TopAppBar(
                 title = { Text("Yellow Player", fontWeight = FontWeight.Bold, color = Yellow500) },
                 colors = TopAppBarDefaults.topAppBarColors(containerColor = DarkBackground),
-                actions = {
-                    IconButton(onClick = { navController.navigate(Routes.SETTINGS) }) {
-                        Icon(Icons.Default.Settings, "设置", tint = TextSecondary)
-                    }
-                }
+                actions = {}
             )
         },
         containerColor = DarkBackground
@@ -218,6 +214,13 @@ fun SourceSelectScreen(navController: NavController) {
                 }
             )
 
+            SourceCard(
+                title = "设置",
+                subtitle = "播放、倍速、调试日志等设置",
+                icon = Icons.Default.Settings,
+                onClick = { navController.navigate(Routes.SETTINGS) }
+            )
+
             Spacer(Modifier.weight(1f))
             Text(
                 text = if (Build.VERSION.SDK_INT >= 30 && Environment.isExternalStorageManager()) "✅ 已获得完整文件访问权限（含 .nomedia）" else "⚠️ 需要权限才能读取 .nomedia 视频",
@@ -225,7 +228,7 @@ fun SourceSelectScreen(navController: NavController) {
                 fontSize = 12.sp,
                 modifier = Modifier.fillMaxWidth().padding(horizontal = 4.dp)
             )
-            Text("v1.0.5", color = TextHint, fontSize = 12.sp, modifier = Modifier.align(Alignment.CenterHorizontally))
+            Text("v1.0.6", color = TextHint, fontSize = 12.sp, modifier = Modifier.align(Alignment.CenterHorizontally))
         }
     }
 

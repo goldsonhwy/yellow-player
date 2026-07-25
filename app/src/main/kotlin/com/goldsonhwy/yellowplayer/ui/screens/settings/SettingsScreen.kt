@@ -24,6 +24,7 @@ import androidx.core.content.FileProvider
 import androidx.navigation.NavController
 import com.goldsonhwy.yellowplayer.ui.theme.*
 import com.goldsonhwy.yellowplayer.util.CrashReporter
+import kotlin.math.roundToInt
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -63,7 +64,7 @@ fun SettingsScreen(navController: NavController) {
                 type = "application/zip"
                 putExtra(Intent.EXTRA_STREAM, uri)
                 putExtra(Intent.EXTRA_SUBJECT, "Yellow Player 调试日志")
-                putExtra(Intent.EXTRA_TEXT, "Yellow Player v1.0.5 调试日志/崩溃日志")
+                putExtra(Intent.EXTRA_TEXT, "Yellow Player v1.0.6 调试日志/崩溃日志")
                 addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)
             }
             context.startActivity(Intent.createChooser(intent, "导出调试日志"))
@@ -167,7 +168,7 @@ fun SettingsScreen(navController: NavController) {
             SettingsItem(
                 icon = Icons.Default.Info,
                 title = "版本",
-                subtitle = "1.0.5",
+                subtitle = "1.0.6",
                 onClick = {}
             )
 
@@ -268,7 +269,7 @@ private fun SpeedPickerDialog(
                 Slider(
                     value = value,
                     onValueChange = {
-                        value = it.coerceIn(1f, 5f)
+                        value = ((it.coerceIn(1f, 5f) * 10).roundToInt() / 10f)
                         onSelect(value)
                     },
                     valueRange = 1f..5f,
