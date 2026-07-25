@@ -4,13 +4,18 @@
     android:height="108dp"
     android:viewportWidth="108"
     android:viewportHeight="108">
+    <!-- Pornhub-style black background -->
     <path
         android:fillColor="#FF000000"
-        android:pathData="M54,54m-48,0a48,48 0,1 1,96 0a48,48 0,1 1,-96 0" />
+        android:pathData="M0,0 H108 V108 H0 Z" />
+
+    <!-- 9:15 yellow rounded rectangle: 54 x 90 -->
     <path
         android:fillColor="#FFFF9900"
-        android:pathData="M24,32 L48,32 L48,48 L60,48 L60,32 L84,32 L84,76 L60,76 L60,58 L48,58 L48,76 L24,76 Z" />
+        android:pathData="M35,9 H73 Q81,9 81,17 V91 Q81,99 73,99 H35 Q27,99 27,91 V17 Q27,9 35,9 Z" />
+
+    <!-- Play triangle -->
     <path
         android:fillColor="#FF000000"
-        android:pathData="M68,44 L68,64 L82,54 Z" />
+        android:pathData="M47,40 L47,68 L69,54 Z" />
 </vector>
