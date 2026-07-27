@@ -522,7 +522,8 @@ private fun CapsuleIconButton(
     androidx.compose.material3.Surface(
         modifier = modifier
             .padding(horizontal = 3.dp)
-            .height(38.dp)
+            .offset(y = 2.dp)
+            .height(34.dp)
             .clickable(onClick = onClick),
         shape = androidx.compose.material3.MaterialTheme.shapes.extraLarge,
         color = Yellow500

@@ -133,7 +133,7 @@ fun SourceSelectScreen(navController: NavController) {
         when {
             Build.VERSION.SDK_INT >= 30 && !Environment.isExternalStorageManager() -> {
                 pendingSource = source
-                permissionDialogMessage = "Yellow Player 需要「所有文件访问权限」才能读取本地视频文件，包括 .nomedia 文件夹中的内容。\n\n请点击「去授权」→ 找到 Yellow Player → 开启「允许管理所有文件」。"
+                permissionDialogMessage = "Yellow Shorts 需要「所有文件访问权限」才能读取本地视频文件，包括 .nomedia 文件夹中的内容。\n\n请点击「去授权」→ 找到 Yellow Shorts → 开启「允许管理所有文件」。"
                 showPermissionDialog = true
             }
             Build.VERSION.SDK_INT >= 33 && ContextCompat.checkSelfPermission(context, Manifest.permission.READ_MEDIA_VIDEO) != PackageManager.PERMISSION_GRANTED -> {
@@ -151,7 +151,7 @@ fun SourceSelectScreen(navController: NavController) {
     Scaffold(
         topBar = {
             TopAppBar(
-                title = { Text("Yellow Player", fontWeight = FontWeight.Bold, color = Yellow500) },
+                title = { Text("Yellow Shorts", fontWeight = FontWeight.Bold, color = Yellow500) },
                 colors = TopAppBarDefaults.topAppBarColors(containerColor = DarkBackground),
                 actions = {}
             )
@@ -233,7 +233,7 @@ fun SourceSelectScreen(navController: NavController) {
                 fontSize = 12.sp,
                 modifier = Modifier.fillMaxWidth().padding(horizontal = 4.dp)
             )
-            Text("v2.0.7", color = TextHint, fontSize = 12.sp, modifier = Modifier.align(Alignment.CenterHorizontally))
+            Text("v2.1.0", color = TextHint, fontSize = 12.sp, modifier = Modifier.align(Alignment.CenterHorizontally))
         }
     }
 
@@ -320,7 +320,7 @@ fun SourceSelectScreen(navController: NavController) {
             titleContentColor = TextPrimary,
             textContentColor = TextSecondary,
             title = { Text("退出程序？", fontWeight = FontWeight.Bold) },
-            text = { Text("确定要退出 Yellow Player 吗？") },
+            text = { Text("确定要退出 Yellow Shorts 吗？") },
             confirmButton = {
                 TextButton(onClick = { (context as? Activity)?.finish() }) { Text("退出", color = LikeRed) }
             },

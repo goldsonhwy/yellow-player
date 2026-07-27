@@ -36,7 +36,7 @@ object CrashReporter {
 
     fun createDebugZip(context: Context): File {
         writeDebugSnapshot(context, "export button tapped")
-        val out = File(context.cacheDir, "yellow-player-debug-${timestampForFile()}.zip")
+        val out = File(context.cacheDir, "yellow-shorts-debug-${timestampForFile()}.zip")
         ZipOutputStream(out.outputStream()).use { zip ->
             addText(zip, "debug_info.txt", File(context.filesDir, DEBUG_FILE).readText())
             val crash = File(context.filesDir, CRASH_FILE)
@@ -53,7 +53,7 @@ object CrashReporter {
         val sw = StringWriter()
         throwable.printStackTrace(PrintWriter(sw))
         val text = buildString {
-            appendLine("Yellow Player Crash Report")
+            appendLine("Yellow Shorts Crash Report")
             appendLine("Time: ${timestampHuman()}")
             appendLine("Thread: ${thread.name}")
             appendLine()
@@ -72,11 +72,11 @@ object CrashReporter {
         val ext = runCatching { Environment.getExternalStorageDirectory().absolutePath }.getOrDefault("unknown")
         val extReadable = runCatching { Environment.getExternalStorageDirectory().canRead() }.getOrDefault(false)
         return buildString {
-            appendLine("Yellow Player Debug Info")
+            appendLine("Yellow Shorts Debug Info")
             appendLine("Time: ${timestampHuman()}")
             appendLine("Note: $note")
             appendLine("Package: ${context.packageName}")
-            appendLine("App version: 2.0.7")
+            appendLine("App version: 2.1.0")
             appendLine("Android SDK: ${Build.VERSION.SDK_INT}")
             appendLine("Device: ${Build.MANUFACTURER} ${Build.MODEL}")
             appendLine("All files access: $allFilesAccess")

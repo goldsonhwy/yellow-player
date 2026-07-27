@@ -15,5 +15,5 @@ dependencyResolutionManagement {
     }
 }
 
-rootProject.name = "YellowPlayer"
+rootProject.name = "YellowShorts"
 include(":app")
