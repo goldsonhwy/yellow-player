@@ -70,6 +70,8 @@ fun PlayerScreen(
     var seekProgress by remember { mutableFloatStateOf(0f) }
     var progress by remember { mutableFloatStateOf(0f) }
     var bufferedProgress by remember { mutableFloatStateOf(0f) }
+    var positionMs by remember { mutableLongStateOf(0L) }
+    var durationMs by remember { mutableLongStateOf(0L) }
     var actualSpeed by remember { mutableFloatStateOf(1f) }
     var lastShortTapAt by remember { mutableLongStateOf(0L) }
 
@@ -106,6 +108,8 @@ fun PlayerScreen(
         while (true) {
             delay(400)
             val dur = player.duration
+            positionMs = player.currentPosition.coerceAtLeast(0L)
+            durationMs = dur.coerceAtLeast(0L)
             progress = if (dur > 0) player.currentPosition.toFloat() / dur else 0f
             bufferedProgress = (player.bufferedPercentage / 100f).coerceIn(0f, 1f)
         }
@@ -269,25 +273,6 @@ fun PlayerScreen(
                     .fillMaxWidth()
                     .statusBarsPadding()
             ) {
-                Box(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .height(5.dp)
-                        .background(Yellow500.copy(alpha = 0.22f))
-                ) {
-                    Box(
-                        modifier = Modifier
-                            .fillMaxWidth(bufferedProgress.coerceIn(0f, 1f))
-                            .height(5.dp)
-                            .background(White.copy(alpha = 0.35f))
-                    )
-                    Box(
-                        modifier = Modifier
-                            .fillMaxWidth(progress.coerceIn(0.02f, 1f))
-                            .height(5.dp)
-                            .background(Yellow500)
-                    )
-                }
                 Row(
                     modifier = Modifier
                         .fillMaxWidth()
@@ -348,17 +333,48 @@ fun PlayerScreen(
             }
         }
 
-        // Bottom: five equally spaced buttons.
+        // Bottom timeline + five equally spaced buttons.
         if (videos.isNotEmpty()) {
-            Row(
+            Column(
                 modifier = Modifier
                     .align(Alignment.BottomCenter)
                     .fillMaxWidth()
                     .navigationBarsPadding()
-                    .padding(horizontal = 14.dp, vertical = 18.dp),
-                horizontalArrangement = Arrangement.SpaceEvenly,
-                verticalAlignment = Alignment.CenterVertically
+                    .padding(horizontal = 12.dp, vertical = 12.dp)
             ) {
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.spacedBy(8.dp)
+                ) {
+                    androidx.compose.material3.Text(formatPlayerTime(positionMs), color = White, fontSize = 12.sp)
+                    androidx.compose.material3.Slider(
+                        value = progress.coerceIn(0f, 1f),
+                        onValueChange = { value ->
+                            val dur = durationMs
+                            if (dur > 0) {
+                                val target = (dur * value).toLong().coerceIn(0L, dur)
+                                player.seekTo(target)
+                                positionMs = target
+                                progress = value.coerceIn(0f, 1f)
+                            }
+                        },
+                        modifier = Modifier.weight(1f),
+                        colors = androidx.compose.material3.SliderDefaults.colors(
+                            thumbColor = Yellow500,
+                            activeTrackColor = Yellow500,
+                            inactiveTrackColor = Yellow500.copy(alpha = 0.25f)
+                        )
+                    )
+                    androidx.compose.material3.Text(formatPlayerTime(durationMs), color = White, fontSize = 12.sp)
+                }
+                Row(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(top = 4.dp),
+                    horizontalArrangement = Arrangement.SpaceEvenly,
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
                 CapsuleIconButton(
                     onClick = { stepFrame(-33L) },
                     modifier = Modifier.weight(1f),
@@ -404,6 +420,7 @@ fun PlayerScreen(
                     Icon(Icons.Default.SkipNext, "逐帧前进", tint = White, modifier = Modifier.size(24.dp))
                 }
             }
+            }
         }
 
         // Gesture layer: tap toggles pause/play directly; no dark overlay, no icons.
@@ -413,7 +430,7 @@ fun PlayerScreen(
                 .statusBarsPadding()
                 .padding(top = 44.dp)
                 .navigationBarsPadding()
-                .padding(bottom = 92.dp)
+                .padding(bottom = 150.dp)
                 .pointerInput(currentSpeed, longPressSpeed) {
                     awaitEachGesture {
                         awaitFirstDown(requireUnconsumed = false)
@@ -488,4 +505,11 @@ private fun CapsuleIconButton(
             content()
         }
     }
+}
+private fun formatPlayerTime(millis: Long): String {
+    val totalSec = (millis / 1000).coerceAtLeast(0L)
+    val hours = totalSec / 3600
+    val minutes = (totalSec % 3600) / 60
+    val seconds = totalSec % 60
+    return if (hours > 0) "%d:%02d:%02d".format(hours, minutes, seconds) else "%02d:%02d".format(minutes, seconds)
 }

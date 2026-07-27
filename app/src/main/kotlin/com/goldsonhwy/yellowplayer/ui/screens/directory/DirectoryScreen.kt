@@ -54,7 +54,9 @@ fun DirectoryScreen(
     val uiState by viewModel.uiState.collectAsState()
     val gridState = rememberLazyGridState()
     var showSortDialog by remember { mutableStateOf(false) }
-    var sortMode by remember { mutableStateOf("name") }
+    val sortPrefs = remember { context.getSharedPreferences("directory_sort", android.content.Context.MODE_PRIVATE) }
+    val sortKey = remember(source, serverId, folderPath) { "${source.name}_${serverId}_${folderPath.hashCode()}" }
+    var sortMode by remember(sortKey) { mutableStateOf(sortPrefs.getString(sortKey, "name") ?: "name") }
     var moveProgressText by remember { mutableStateOf("") }
     var selectedPaths by remember { mutableStateOf(setOf<String>()) }
     var showMoreActions by remember { mutableStateOf(false) }
@@ -468,7 +470,11 @@ fun DirectoryScreen(
                         Row(verticalAlignment = Alignment.CenterVertically) {
                             RadioButton(
                                 selected = sortMode == key,
-                                onClick = { sortMode = key; showSortDialog = false },
+                                onClick = {
+                                    sortMode = key
+                                    sortPrefs.edit().putString(sortKey, key).apply()
+                                    showSortDialog = false
+                                },
                                 colors = RadioButtonDefaults.colors(selectedColor = Yellow500)
                             )
                             Text(label, color = TextPrimary)
