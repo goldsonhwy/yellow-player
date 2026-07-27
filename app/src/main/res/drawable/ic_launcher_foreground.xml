@@ -4,55 +4,50 @@
     android:height="108dp"
     android:viewportWidth="108"
     android:viewportHeight="108">
-    <!-- Black rounded app tile -->
-    <path
-        android:fillColor="#FF050505"
-        android:pathData="M18,4 H90 Q104,4 104,18 V90 Q104,104 90,104 H18 Q4,104 4,90 V18 Q4,4 18,4 Z" />
-    <path
-        android:strokeColor="#FF2A2A2A"
-        android:strokeWidth="2"
-        android:fillColor="#00000000"
-        android:pathData="M20,7 H88 Q101,7 101,20 V88 Q101,101 88,101 H20 Q7,101 7,88 V20 Q7,7 20,7 Z" />
 
-    <!-- Glowing phone outline -->
+    <!-- Keep all artwork inside the adaptive-icon safe zone so it is not clipped. -->
+    <!-- Phone outline -->
     <path
         android:strokeColor="#FFFF9900"
-        android:strokeWidth="5"
+        android:strokeWidth="4"
         android:strokeLineCap="round"
         android:strokeLineJoin="round"
         android:fillColor="#00000000"
-        android:pathData="M36,16 H72 Q79,16 79,23 V85 Q79,92 72,92 H36 Q29,92 29,85 V23 Q29,16 36,16 Z" />
-    <path
-        android:strokeColor="#FFFFB84D"
-        android:strokeWidth="1.5"
-        android:strokeLineCap="round"
-        android:fillColor="#00000000"
-        android:pathData="M45,86 H63" />
+        android:pathData="M36,18 H72 Q77,18 77,23 V85 Q77,90 72,90 H36 Q31,90 31,85 V23 Q31,18 36,18 Z" />
 
-    <!-- Stylized orange bra symbol -->
-    <path
-        android:fillColor="#FFFF9900"
-        android:pathData="M35,41 C36,31 45,29 51,38 C48,49 38,50 35,41 Z" />
-    <path
-        android:fillColor="#FFFF9900"
-        android:pathData="M73,41 C72,31 63,29 57,38 C60,49 70,50 73,41 Z" />
-    <path
-        android:strokeColor="#FFFFB84D"
-        android:strokeWidth="3"
-        android:strokeLineCap="round"
-        android:fillColor="#00000000"
-        android:pathData="M43,36 L43,26 M65,36 L65,26 M51,39 C53,42 55,42 57,39" />
-    <path
-        android:fillColor="#FF0A0A0A"
-        android:pathData="M51,39 C53,42 55,42 57,39 C56,45 52,45 51,39 Z" />
-
-    <!-- Play button -->
-    <path
-        android:fillColor="#FFFF9900"
-        android:pathData="M46,58 L46,75 L63,66.5 Z" />
+    <!-- subtle inner orange glow lines -->
     <path
         android:strokeColor="#FFFFC266"
-        android:strokeWidth="1"
+        android:strokeWidth="1.2"
+        android:strokeLineCap="round"
         android:fillColor="#00000000"
-        android:pathData="M46,58 L46,75 L63,66.5 Z" />
+        android:pathData="M39,22 H69 M45,84 H63" />
+
+    <!-- bra / lingerie symbol, simplified for small icon sizes -->
+    <path
+        android:fillColor="#FFFF9900"
+        android:pathData="M38,42 C39,34 47,33 52,40 C49,49 41,50 38,42 Z" />
+    <path
+        android:fillColor="#FFFF9900"
+        android:pathData="M70,42 C69,34 61,33 56,40 C59,49 67,50 70,42 Z" />
+    <path
+        android:strokeColor="#FFFFC266"
+        android:strokeWidth="2.2"
+        android:strokeLineCap="round"
+        android:strokeLineJoin="round"
+        android:fillColor="#00000000"
+        android:pathData="M44,38 L44,29 M64,38 L64,29 M52,40 C53.5,42 54.5,42 56,40" />
+
+    <!-- play button -->
+    <path
+        android:fillColor="#FFFF9900"
+        android:pathData="M47,58 L47,73 L63,65.5 Z" />
+
+    <!-- bottom home indicator -->
+    <path
+        android:strokeColor="#FFFF9900"
+        android:strokeWidth="2"
+        android:strokeLineCap="round"
+        android:fillColor="#00000000"
+        android:pathData="M47,80 H61" />
 </vector>
