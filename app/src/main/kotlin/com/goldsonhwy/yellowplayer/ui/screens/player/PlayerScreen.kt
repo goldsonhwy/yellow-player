@@ -1,6 +1,7 @@
 package com.goldsonhwy.yellowplayer.ui.screens.player
 
 import android.content.Intent
+import android.app.Activity
 import android.net.Uri
 import android.widget.Toast
 import androidx.compose.foundation.background
@@ -31,6 +32,9 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.compose.ui.viewinterop.AndroidView
 import androidx.core.content.FileProvider
+import androidx.core.view.WindowCompat
+import androidx.core.view.WindowInsetsCompat
+import androidx.core.view.WindowInsetsControllerCompat
 import androidx.lifecycle.viewmodel.compose.viewModel
 import androidx.media3.common.MediaItem
 import androidx.media3.common.Player
@@ -131,6 +135,24 @@ fun PlayerScreen(
     }
 
     val currentPathForDispose by rememberUpdatedState(videos.getOrNull(currentIndex)?.path)
+
+    DisposableEffect(Unit) {
+        val activity = context as? Activity
+        val window = activity?.window
+        if (window != null) {
+            WindowCompat.setDecorFitsSystemWindows(window, false)
+            WindowInsetsControllerCompat(window, window.decorView).apply {
+                hide(WindowInsetsCompat.Type.statusBars())
+                systemBarsBehavior = WindowInsetsControllerCompat.BEHAVIOR_SHOW_TRANSIENT_BARS_BY_SWIPE
+            }
+        }
+        onDispose {
+            if (window != null) {
+                WindowInsetsControllerCompat(window, window.decorView).show(WindowInsetsCompat.Type.statusBars())
+                WindowCompat.setDecorFitsSystemWindows(window, true)
+            }
+        }
+    }
 
     DisposableEffect(Unit) {
         onDispose {
@@ -271,12 +293,11 @@ fun PlayerScreen(
                 modifier = Modifier
                     .align(Alignment.TopCenter)
                     .fillMaxWidth()
-                    .statusBarsPadding()
             ) {
                 Row(
                     modifier = Modifier
                         .fillMaxWidth()
-                        .padding(horizontal = 4.dp, vertical = 2.dp),
+                        .padding(horizontal = 4.dp, vertical = 4.dp),
                     horizontalArrangement = Arrangement.SpaceEvenly,
                     verticalAlignment = Alignment.CenterVertically
                 ) {
@@ -368,6 +389,7 @@ fun PlayerScreen(
                     )
                     androidx.compose.material3.Text(formatPlayerTime(durationMs), color = White, fontSize = 12.sp)
                 }
+                Spacer(Modifier.height(14.dp))
                 Row(
                     modifier = Modifier
                         .fillMaxWidth()
