@@ -283,7 +283,9 @@ fun PlayerScreen(
                         keepScreenOn = true
                     }
                 },
-                modifier = Modifier.fillMaxSize()
+                modifier = Modifier
+                    .fillMaxSize()
+                    .padding(top = 34.dp)
             )
         }
 
@@ -397,51 +399,51 @@ fun PlayerScreen(
                     horizontalArrangement = Arrangement.SpaceEvenly,
                     verticalAlignment = Alignment.CenterVertically
                 ) {
-                CapsuleIconButton(
-                    onClick = { stepFrame(-33L) },
-                    modifier = Modifier.weight(1f),
-                    contentDescription = "逐帧后退"
-                ) {
-                    Icon(Icons.Default.SkipPrevious, "逐帧后退", tint = White, modifier = Modifier.size(24.dp))
-                }
+                    CapsuleIconButton(
+                        onClick = { shareCurrentVideo() },
+                        modifier = Modifier.weight(1f),
+                        contentDescription = "分享"
+                    ) {
+                        Icon(Icons.Default.Share, "分享", tint = Black, modifier = Modifier.size(24.dp))
+                    }
 
-                CapsuleIconButton(
-                    onClick = { shareCurrentVideo() },
-                    modifier = Modifier.weight(1f),
-                    contentDescription = "分享"
-                ) {
-                    Icon(Icons.Default.Share, "分享", tint = White, modifier = Modifier.size(24.dp))
-                }
+                    CapsuleIconButton(
+                        onClick = { stepFrame(-33L) },
+                        modifier = Modifier.weight(1f),
+                        contentDescription = "逐帧后退"
+                    ) {
+                        Icon(Icons.Default.SkipPrevious, "逐帧后退", tint = Black, modifier = Modifier.size(24.dp))
+                    }
 
-                CapsuleIconButton(
-                    onClick = { toggleCurrentFavorite(showAnimation = true) },
-                    modifier = Modifier.weight(1f),
-                    contentDescription = "收藏"
-                ) {
-                    Icon(
-                        if (isFavorite) Icons.Default.Favorite else Icons.Default.FavoriteBorder,
-                        "收藏",
-                        tint = if (isFavorite) LikeRed else White,
-                        modifier = Modifier.size(24.dp)
-                    )
-                }
+                    CapsuleIconButton(
+                        onClick = { toggleCurrentFavorite(showAnimation = true) },
+                        modifier = Modifier.weight(1f),
+                        contentDescription = "收藏"
+                    ) {
+                        Icon(
+                            if (isFavorite) Icons.Default.Favorite else Icons.Default.FavoriteBorder,
+                            "收藏",
+                            tint = Black,
+                            modifier = Modifier.size(24.dp)
+                        )
+                    }
 
-                CapsuleIconButton(
-                    onClick = { deleteCurrentVideo() },
-                    modifier = Modifier.weight(1f),
-                    contentDescription = "删除"
-                ) {
-                    Icon(Icons.Default.Delete, "删除", tint = White, modifier = Modifier.size(24.dp))
-                }
+                    CapsuleIconButton(
+                        onClick = { stepFrame(33L) },
+                        modifier = Modifier.weight(1f),
+                        contentDescription = "逐帧前进"
+                    ) {
+                        Icon(Icons.Default.SkipNext, "逐帧前进", tint = Black, modifier = Modifier.size(24.dp))
+                    }
 
-                CapsuleIconButton(
-                    onClick = { stepFrame(33L) },
-                    modifier = Modifier.weight(1f),
-                    contentDescription = "逐帧前进"
-                ) {
-                    Icon(Icons.Default.SkipNext, "逐帧前进", tint = White, modifier = Modifier.size(24.dp))
+                    CapsuleIconButton(
+                        onClick = { deleteCurrentVideo() },
+                        modifier = Modifier.weight(1f),
+                        contentDescription = "删除"
+                    ) {
+                        Icon(Icons.Default.Delete, "删除", tint = Black, modifier = Modifier.size(24.dp))
+                    }
                 }
-            }
             }
         }
 
@@ -521,7 +523,7 @@ private fun CapsuleIconButton(
             .height(38.dp)
             .clickable(onClick = onClick),
         shape = androidx.compose.material3.MaterialTheme.shapes.extraLarge,
-        color = DarkSurfaceVariant
+        color = Yellow500
     ) {
         Box(contentAlignment = Alignment.Center) {
             content()
