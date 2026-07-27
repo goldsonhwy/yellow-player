@@ -233,7 +233,7 @@ fun SourceSelectScreen(navController: NavController) {
                 fontSize = 12.sp,
                 modifier = Modifier.fillMaxWidth().padding(horizontal = 4.dp)
             )
-            Text("v2.0.3", color = TextHint, fontSize = 12.sp, modifier = Modifier.align(Alignment.CenterHorizontally))
+            Text("v2.0.4", color = TextHint, fontSize = 12.sp, modifier = Modifier.align(Alignment.CenterHorizontally))
         }
     }
 
