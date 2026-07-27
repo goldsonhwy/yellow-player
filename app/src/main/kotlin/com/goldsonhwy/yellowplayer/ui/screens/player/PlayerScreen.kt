@@ -41,6 +41,7 @@ import androidx.media3.common.Player
 import androidx.media3.exoplayer.ExoPlayer
 import androidx.media3.exoplayer.source.DefaultMediaSourceFactory
 import androidx.media3.ui.PlayerView
+import androidx.media3.ui.AspectRatioFrameLayout
 import androidx.navigation.NavController
 import com.goldsonhwy.yellowplayer.data.model.VideoSource
 import com.goldsonhwy.yellowplayer.smb.SmbStreamDataSource
@@ -280,6 +281,7 @@ fun PlayerScreen(
                     PlayerView(ctx).apply {
                         this.player = player
                         useController = false
+                        resizeMode = AspectRatioFrameLayout.RESIZE_MODE_ZOOM
                         keepScreenOn = true
                     }
                 },
