@@ -287,7 +287,7 @@ fun PlayerScreen(
                 },
                 modifier = Modifier
                     .fillMaxSize()
-                    .padding(top = 34.dp, bottom = 104.dp)
+                    .padding(top = 34.dp, bottom = 106.dp)
             )
         }
 
