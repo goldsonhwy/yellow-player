@@ -8,6 +8,7 @@ import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.gestures.detectHorizontalDragGestures
 import androidx.compose.foundation.gestures.detectTapGestures
+import androidx.compose.foundation.gestures.detectVerticalDragGestures
 import androidx.compose.foundation.layout.*
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Delete
@@ -26,6 +27,7 @@ import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.foundation.gestures.awaitEachGesture
 import androidx.compose.foundation.gestures.awaitFirstDown
 import androidx.compose.foundation.gestures.waitForUpOrCancellation
+import androidx.compose.ui.unit.IntOffset
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
@@ -81,6 +83,7 @@ fun PlayerScreen(
     var actualSpeed by remember { mutableFloatStateOf(1f) }
     var lastShortTapAt by remember { mutableLongStateOf(0L) }
     var playerResizeMode by remember { mutableIntStateOf(AspectRatioFrameLayout.RESIZE_MODE_ZOOM) }
+    var verticalDragOffset by remember { mutableFloatStateOf(0f) }
 
     LaunchedEffect(source, folderPath) {
         viewModel.loadVideos(source, folderPath)
@@ -281,6 +284,7 @@ fun PlayerScreen(
                 },
                 modifier = Modifier
                     .fillMaxSize()
+                    .offset { IntOffset(0, verticalDragOffset.roundToInt()) }
                     .padding(top = 34.dp, bottom = 106.dp)
             )
         }
@@ -451,8 +455,8 @@ fun PlayerScreen(
         }
 
         // Gesture layer:
-        // - 上半部分：左右滑动精细调进度（100px ≈ 1%）。
-        // - 下半部分：左右滑动切换上/下一个视频，替代抖音式上下滑切换。
+        // - 上下滑动：像抖音一样切换视频；拖动时视频画面跟着手指上下移动。
+        // - 左右滑动：恢复四个横向进度区，越靠下越快。
         // - 底部进度条/按钮区域不覆盖，避免阻挡 Slider 和按钮点击。
         Box(
             modifier = Modifier
@@ -494,48 +498,64 @@ fun PlayerScreen(
                     }
                 }
                 .pointerInput(videos, currentIndex) {
-                    var startY = 0f
-                    var totalHorizontalDrag = 0f
                     var horizontalSeekDeltaMs = 0L
                     detectHorizontalDragGestures(
-                        onDragStart = { offset ->
-                            startY = offset.y
-                            totalHorizontalDrag = 0f
+                        onDragStart = {
                             horizontalSeekDeltaMs = 0L
                         },
                         onHorizontalDrag = { change, dragAmount ->
                             change.consume()
-                            totalHorizontalDrag += dragAmount
-                            val gestureHeight = size.height.coerceAtLeast(1)
-                            val isTopHalf = startY < gestureHeight / 2f
-                            if (isTopHalf) {
-                                val duration = player.duration.takeIf { it > 0 } ?: 0L
-                                val percentPerPx = 0.00010f // 精细进度：100px ≈ 1%
-                                val deltaMs = (duration * dragAmount * percentPerPx).toLong()
-                                horizontalSeekDeltaMs += deltaMs
-                                seekProgress = if (duration > 0) {
-                                    (horizontalSeekDeltaMs.toFloat() / duration).coerceIn(-0.25f, 0.25f)
-                                } else 0f
+                            val duration = player.duration.takeIf { it > 0 } ?: 0L
+                            val screenH = size.height.coerceAtLeast(1)
+                            val zone = ((change.position.y / screenH) * 4f).toInt().coerceIn(0, 3)
+                            val percentPerPx = when (zone) {
+                                0 -> 0.00010f  // 最上区：100px ≈ 1%
+                                1 -> 0.00020f  // 第二区：100px ≈ 2%
+                                2 -> 0.00050f  // 第三区：100px ≈ 5%
+                                else -> 0.00100f // 最下区：100px ≈ 10%
                             }
+                            val deltaMs = (duration * dragAmount * percentPerPx).toLong()
+                            horizontalSeekDeltaMs += deltaMs
+                            seekProgress = if (duration > 0) {
+                                (horizontalSeekDeltaMs.toFloat() / duration).coerceIn(-0.5f, 0.5f)
+                            } else 0f
                         },
                         onDragEnd = {
-                            val gestureHeight = size.height.coerceAtLeast(1)
-                            val isTopHalf = startY < gestureHeight / 2f
-                            if (isTopHalf) {
-                                val duration = player.duration
-                                if (duration > 0 && horizontalSeekDeltaMs != 0L) {
-                                    val seekTo = (player.currentPosition + horizontalSeekDeltaMs).coerceIn(0L, duration)
-                                    player.seekTo(seekTo)
-                                }
-                                seekProgress = 0f
-                            } else if (videos.isNotEmpty() && abs(totalHorizontalDrag) >= 120f) {
+                            val duration = player.duration
+                            if (duration > 0 && horizontalSeekDeltaMs != 0L) {
+                                val seekTo = (player.currentPosition + horizontalSeekDeltaMs).coerceIn(0L, duration)
+                                player.seekTo(seekTo)
+                            }
+                            seekProgress = 0f
+                            horizontalSeekDeltaMs = 0L
+                        }
+                    )
+                }
+                .pointerInput(videos, currentIndex) {
+                    var totalVerticalDrag = 0f
+                    detectVerticalDragGestures(
+                        onDragStart = {
+                            totalVerticalDrag = 0f
+                            verticalDragOffset = 0f
+                        },
+                        onVerticalDrag = { change, dragAmount ->
+                            change.consume()
+                            totalVerticalDrag += dragAmount
+                            verticalDragOffset = totalVerticalDrag.coerceIn(-size.height.toFloat(), size.height.toFloat())
+                        },
+                        onDragEnd = {
+                            if (videos.isNotEmpty() && abs(totalVerticalDrag) >= 120f) {
                                 when {
-                                    totalHorizontalDrag < 0f && currentIndex < videos.lastIndex -> switchToIndex(currentIndex + 1)
-                                    totalHorizontalDrag > 0f && currentIndex > 0 -> switchToIndex(currentIndex - 1)
+                                    totalVerticalDrag < 0f && currentIndex < videos.lastIndex -> switchToIndex(currentIndex + 1)
+                                    totalVerticalDrag > 0f && currentIndex > 0 -> switchToIndex(currentIndex - 1)
                                 }
                             }
-                            totalHorizontalDrag = 0f
-                            horizontalSeekDeltaMs = 0L
+                            totalVerticalDrag = 0f
+                            verticalDragOffset = 0f
+                        },
+                        onDragCancel = {
+                            totalVerticalDrag = 0f
+                            verticalDragOffset = 0f
                         }
                     )
                 }
