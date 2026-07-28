@@ -6,6 +6,7 @@ import android.net.Uri
 import android.widget.Toast
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.gestures.calculateZoom
 import androidx.compose.foundation.gestures.detectHorizontalDragGestures
 import androidx.compose.foundation.gestures.detectTapGestures
 import androidx.compose.foundation.gestures.detectVerticalDragGestures
@@ -23,6 +24,8 @@ import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.graphicsLayer
+import androidx.compose.ui.input.pointer.PointerEventPass
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.foundation.gestures.awaitEachGesture
 import androidx.compose.foundation.gestures.awaitFirstDown
@@ -82,6 +85,9 @@ fun PlayerScreen(
     var actualSpeed by remember { mutableFloatStateOf(1f) }
     var lastShortTapAt by remember { mutableLongStateOf(0L) }
     var playerResizeMode by remember { mutableIntStateOf(AspectRatioFrameLayout.RESIZE_MODE_ZOOM) }
+    var videoScale by remember { mutableFloatStateOf(1f) }
+    var showScaleIndicator by remember { mutableStateOf(false) }
+    var suppressSingleFingerGestures by remember { mutableStateOf(false) }
 
     LaunchedEffect(source, folderPath) {
         viewModel.loadVideos(source, folderPath)
@@ -135,6 +141,20 @@ fun PlayerScreen(
         if (showLikeAnimation) {
             delay(700)
             showLikeAnimation = false
+        }
+    }
+
+    LaunchedEffect(showScaleIndicator, videoScale) {
+        if (showScaleIndicator) {
+            delay(800)
+            showScaleIndicator = false
+        }
+    }
+
+    LaunchedEffect(suppressSingleFingerGestures) {
+        if (suppressSingleFingerGestures) {
+            delay(160)
+            suppressSingleFingerGestures = false
         }
     }
 
@@ -287,6 +307,10 @@ fun PlayerScreen(
                 modifier = Modifier
                     .fillMaxSize()
                     .padding(top = 34.dp, bottom = 106.dp)
+                    .graphicsLayer {
+                        scaleX = videoScale
+                        scaleY = videoScale
+                    }
             )
         }
 
@@ -354,6 +378,22 @@ fun PlayerScreen(
                     tint = LikeRed,
                     modifier = Modifier.size(132.dp)
                 )
+            }
+        }
+
+        if (showScaleIndicator) {
+            Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
+                androidx.compose.material3.Surface(
+                    shape = androidx.compose.material3.MaterialTheme.shapes.extraLarge,
+                    color = Black.copy(alpha = 0.68f)
+                ) {
+                    androidx.compose.material3.Text(
+                        text = "缩放 ${"%.1f".format(videoScale)}x",
+                        color = Yellow500,
+                        fontSize = 18.sp,
+                        modifier = Modifier.padding(horizontal = 18.dp, vertical = 10.dp)
+                    )
+                }
             }
         }
 
@@ -456,6 +496,7 @@ fun PlayerScreen(
         }
 
         // Gesture layer:
+        // - 双指缩放：手动控制当前播放器会话的视频大小；切换视频不复位，退出播放器才恢复默认。
         // - 上下滑动：直接切换视频，不做拖动跟随/淡入淡出动画。
         // - 左右滑动：恢复四个横向进度区，越靠下越快。
         // - 底部进度条/按钮区域不覆盖，避免阻挡 Slider 和按钮点击。
@@ -466,9 +507,32 @@ fun PlayerScreen(
                 .padding(top = 44.dp)
                 .navigationBarsPadding()
                 .padding(bottom = 150.dp)
-                .pointerInput(currentSpeed, longPressSpeed) {
+                .pointerInput(Unit) {
+                    awaitEachGesture {
+                        var sawMultiTouch = false
+                        do {
+                            val event = awaitPointerEvent(PointerEventPass.Initial)
+                            if (event.changes.count { it.pressed } >= 2) {
+                                sawMultiTouch = true
+                                suppressSingleFingerGestures = true
+                                val zoom = event.calculateZoom()
+                                if (zoom.isFinite() && zoom != 1f) {
+                                    videoScale = (videoScale * zoom).coerceIn(0.75f, 3.0f)
+                                    showScaleIndicator = true
+                                }
+                                event.changes.forEach { it.consume() }
+                            }
+                        } while (event.changes.any { it.pressed })
+                        if (sawMultiTouch) suppressSingleFingerGestures = true
+                    }
+                }
+                .pointerInput(currentSpeed, longPressSpeed, suppressSingleFingerGestures) {
                     awaitEachGesture {
                         awaitFirstDown(requireUnconsumed = false)
+                        if (suppressSingleFingerGestures) {
+                            waitForUpOrCancellation()
+                            return@awaitEachGesture
+                        }
                         val releasedBeforeLongPress = withTimeoutOrNull(520L) {
                             waitForUpOrCancellation()
                         }
@@ -498,13 +562,14 @@ fun PlayerScreen(
                         }
                     }
                 }
-                .pointerInput(videos, currentIndex) {
+                .pointerInput(videos, currentIndex, suppressSingleFingerGestures) {
                     var horizontalSeekDeltaMs = 0L
                     detectHorizontalDragGestures(
                         onDragStart = {
                             horizontalSeekDeltaMs = 0L
                         },
                         onHorizontalDrag = { change, dragAmount ->
+                            if (suppressSingleFingerGestures || change.pressed != true) return@detectHorizontalDragGestures
                             change.consume()
                             val duration = player.duration.takeIf { it > 0 } ?: 0L
                             val screenH = size.height.coerceAtLeast(1)
@@ -532,13 +597,14 @@ fun PlayerScreen(
                         }
                     )
                 }
-                .pointerInput(videos, currentIndex) {
+                .pointerInput(videos, currentIndex, suppressSingleFingerGestures) {
                     var totalVerticalDrag = 0f
                     detectVerticalDragGestures(
                         onDragStart = {
                             totalVerticalDrag = 0f
                         },
                         onVerticalDrag = { change, dragAmount ->
+                            if (suppressSingleFingerGestures || change.pressed != true) return@detectVerticalDragGestures
                             change.consume()
                             totalVerticalDrag += dragAmount
                         },
