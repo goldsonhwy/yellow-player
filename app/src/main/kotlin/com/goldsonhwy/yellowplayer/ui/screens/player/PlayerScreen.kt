@@ -364,7 +364,7 @@ fun PlayerScreen(
                 Row(
                     modifier = Modifier
                         .fillMaxWidth()
-                        .offset(y = (-5).dp),
+                        .offset(y = (-10).dp),
                     verticalAlignment = Alignment.CenterVertically,
                     horizontalArrangement = Arrangement.spacedBy(8.dp)
                 ) {
@@ -384,7 +384,7 @@ fun PlayerScreen(
                                     progress = value.coerceIn(0f, 1f)
                                 }
                             },
-                            modifier = Modifier.fillMaxWidth(0.7f),
+                            modifier = Modifier.fillMaxWidth(),
                             colors = androidx.compose.material3.SliderDefaults.colors(
                                 thumbColor = Yellow500,
                                 activeTrackColor = Yellow500,
