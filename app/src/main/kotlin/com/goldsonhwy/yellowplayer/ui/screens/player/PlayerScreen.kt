@@ -362,29 +362,36 @@ fun PlayerScreen(
                     .padding(horizontal = 12.dp, vertical = 12.dp)
             ) {
                 Row(
-                    modifier = Modifier.fillMaxWidth(),
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .offset(y = (-5).dp),
                     verticalAlignment = Alignment.CenterVertically,
                     horizontalArrangement = Arrangement.spacedBy(8.dp)
                 ) {
                     androidx.compose.material3.Text(formatPlayerTime(positionMs), color = White, fontSize = 12.sp)
-                    androidx.compose.material3.Slider(
-                        value = progress.coerceIn(0f, 1f),
-                        onValueChange = { value ->
-                            val dur = durationMs
-                            if (dur > 0) {
-                                val target = (dur * value).toLong().coerceIn(0L, dur)
-                                player.seekTo(target)
-                                positionMs = target
-                                progress = value.coerceIn(0f, 1f)
-                            }
-                        },
+                    Box(
                         modifier = Modifier.weight(1f),
-                        colors = androidx.compose.material3.SliderDefaults.colors(
-                            thumbColor = Yellow500,
-                            activeTrackColor = Yellow500,
-                            inactiveTrackColor = Yellow500.copy(alpha = 0.25f)
+                        contentAlignment = Alignment.Center
+                    ) {
+                        androidx.compose.material3.Slider(
+                            value = progress.coerceIn(0f, 1f),
+                            onValueChange = { value ->
+                                val dur = durationMs
+                                if (dur > 0) {
+                                    val target = (dur * value).toLong().coerceIn(0L, dur)
+                                    player.seekTo(target)
+                                    positionMs = target
+                                    progress = value.coerceIn(0f, 1f)
+                                }
+                            },
+                            modifier = Modifier.fillMaxWidth(0.7f),
+                            colors = androidx.compose.material3.SliderDefaults.colors(
+                                thumbColor = Yellow500,
+                                activeTrackColor = Yellow500,
+                                inactiveTrackColor = Yellow500.copy(alpha = 0.25f)
+                            )
                         )
-                    )
+                    }
                     androidx.compose.material3.Text(formatPlayerTime(durationMs), color = White, fontSize = 12.sp)
                 }
                 Spacer(Modifier.height(14.dp))
