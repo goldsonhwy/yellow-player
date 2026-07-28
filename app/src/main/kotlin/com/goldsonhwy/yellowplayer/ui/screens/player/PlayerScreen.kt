@@ -8,7 +8,6 @@ import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.gestures.detectHorizontalDragGestures
 import androidx.compose.foundation.gestures.detectTapGestures
-import androidx.compose.foundation.gestures.detectVerticalDragGestures
 import androidx.compose.foundation.layout.*
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Delete
@@ -38,6 +37,7 @@ import androidx.core.view.WindowInsetsControllerCompat
 import androidx.lifecycle.viewmodel.compose.viewModel
 import androidx.media3.common.MediaItem
 import androidx.media3.common.Player
+import androidx.media3.common.VideoSize
 import androidx.media3.exoplayer.ExoPlayer
 import androidx.media3.exoplayer.source.DefaultMediaSourceFactory
 import androidx.media3.ui.PlayerView
@@ -50,6 +50,7 @@ import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withTimeoutOrNull
 import java.io.File
+import kotlin.math.abs
 import kotlin.math.roundToInt
 
 @Composable
@@ -79,6 +80,7 @@ fun PlayerScreen(
     var durationMs by remember { mutableLongStateOf(0L) }
     var actualSpeed by remember { mutableFloatStateOf(1f) }
     var lastShortTapAt by remember { mutableLongStateOf(0L) }
+    var playerResizeMode by remember { mutableIntStateOf(AspectRatioFrameLayout.RESIZE_MODE_ZOOM) }
 
     LaunchedEffect(source, folderPath) {
         viewModel.loadVideos(source, folderPath)
@@ -165,6 +167,25 @@ fun PlayerScreen(
         }
     }
 
+    DisposableEffect(player) {
+        val listener = object : Player.Listener {
+            override fun onVideoSizeChanged(videoSize: VideoSize) {
+                val contentWidth = videoSize.width.takeIf { it > 0 } ?: return
+                val contentHeight = videoSize.height.takeIf { it > 0 } ?: return
+                val pixelRatio = videoSize.pixelWidthHeightRatio.takeIf { it > 0f } ?: 1f
+                val displayAspect = (contentWidth * pixelRatio) / contentHeight.toFloat()
+                playerResizeMode = if (displayAspect < 1f) {
+                    // 竖屏短视频保留铺满裁切；横屏/方形视频必须完整显示，不能被放大裁掉左右。
+                    AspectRatioFrameLayout.RESIZE_MODE_ZOOM
+                } else {
+                    AspectRatioFrameLayout.RESIZE_MODE_FIT
+                }
+            }
+        }
+        player.addListener(listener)
+        onDispose { player.removeListener(listener) }
+    }
+
     LaunchedEffect(videos.getOrNull(currentIndex)?.path) {
         val video = videos.getOrNull(currentIndex)
         isFavorite = if (video != null) viewModel.isFavorite(video.path) else false
@@ -244,36 +265,6 @@ fun PlayerScreen(
     Box(Modifier
         .fillMaxSize()
         .background(Color.Black)
-        .pointerInput(Unit) {
-            var horizontalSeekDeltaMs = 0L
-            detectHorizontalDragGestures(
-                onDragStart = { horizontalSeekDeltaMs = 0L },
-                onDragEnd = {
-                    val duration = player.duration
-                    if (duration > 0 && horizontalSeekDeltaMs != 0L) {
-                        val seekTo = (player.currentPosition + horizontalSeekDeltaMs).coerceIn(0L, duration)
-                        player.seekTo(seekTo)
-                    }
-                    seekProgress = 0f
-                    horizontalSeekDeltaMs = 0L
-                },
-                onHorizontalDrag = { change, dragAmount ->
-                    change.consume()
-                    val duration = player.duration.takeIf { it > 0 } ?: 0L
-                    val screenH = size.height.coerceAtLeast(1)
-                    val zone = ((change.position.y / screenH) * 4f).toInt().coerceIn(0, 3)
-                    val percentPerPx = when (zone) {
-                        0 -> 0.00010f  // 最上区：100px ≈ 1%
-                        1 -> 0.00020f  // 第二区：100px ≈ 2%
-                        2 -> 0.00050f  // 第三区：100px ≈ 5%
-                        else -> 0.00100f // 最下区：100px ≈ 10%
-                    }
-                    val deltaMs = (duration * dragAmount * percentPerPx).toLong()
-                    horizontalSeekDeltaMs += deltaMs
-                    seekProgress = if (duration > 0) (horizontalSeekDeltaMs.toFloat() / duration).coerceIn(-0.5f, 0.5f) else 0f
-                }
-            )
-        }
     ) {
         if (videos.isNotEmpty()) {
             AndroidView(
@@ -281,9 +272,12 @@ fun PlayerScreen(
                     PlayerView(ctx).apply {
                         this.player = player
                         useController = false
-                        resizeMode = AspectRatioFrameLayout.RESIZE_MODE_ZOOM
+                        resizeMode = playerResizeMode
                         keepScreenOn = true
                     }
+                },
+                update = { view ->
+                    view.resizeMode = playerResizeMode
                 },
                 modifier = Modifier
                     .fillMaxSize()
@@ -449,7 +443,10 @@ fun PlayerScreen(
             }
         }
 
-        // Gesture layer: tap toggles pause/play directly; no dark overlay, no icons.
+        // Gesture layer:
+        // - 上半部分：左右滑动精细调进度（100px ≈ 1%）。
+        // - 下半部分：左右滑动切换上/下一个视频，替代抖音式上下滑切换。
+        // - 底部进度条/按钮区域不覆盖，避免阻挡 Slider 和按钮点击。
         Box(
             modifier = Modifier
                 .fillMaxSize()
@@ -490,20 +487,48 @@ fun PlayerScreen(
                     }
                 }
                 .pointerInput(videos, currentIndex) {
-                    var totalDrag = 0f
-                    detectVerticalDragGestures(
-                        onDragStart = { totalDrag = 0f },
-                        onVerticalDrag = { change, dragAmount ->
+                    var startY = 0f
+                    var totalHorizontalDrag = 0f
+                    var horizontalSeekDeltaMs = 0L
+                    detectHorizontalDragGestures(
+                        onDragStart = { offset ->
+                            startY = offset.y
+                            totalHorizontalDrag = 0f
+                            horizontalSeekDeltaMs = 0L
+                        },
+                        onHorizontalDrag = { change, dragAmount ->
                             change.consume()
-                            totalDrag += dragAmount
+                            totalHorizontalDrag += dragAmount
+                            val gestureHeight = size.height.coerceAtLeast(1)
+                            val isTopHalf = startY < gestureHeight / 2f
+                            if (isTopHalf) {
+                                val duration = player.duration.takeIf { it > 0 } ?: 0L
+                                val percentPerPx = 0.00010f // 精细进度：100px ≈ 1%
+                                val deltaMs = (duration * dragAmount * percentPerPx).toLong()
+                                horizontalSeekDeltaMs += deltaMs
+                                seekProgress = if (duration > 0) {
+                                    (horizontalSeekDeltaMs.toFloat() / duration).coerceIn(-0.25f, 0.25f)
+                                } else 0f
+                            }
                         },
                         onDragEnd = {
-                            if (videos.isNotEmpty()) {
+                            val gestureHeight = size.height.coerceAtLeast(1)
+                            val isTopHalf = startY < gestureHeight / 2f
+                            if (isTopHalf) {
+                                val duration = player.duration
+                                if (duration > 0 && horizontalSeekDeltaMs != 0L) {
+                                    val seekTo = (player.currentPosition + horizontalSeekDeltaMs).coerceIn(0L, duration)
+                                    player.seekTo(seekTo)
+                                }
+                                seekProgress = 0f
+                            } else if (videos.isNotEmpty() && abs(totalHorizontalDrag) >= 120f) {
                                 when {
-                                    totalDrag < -120f && currentIndex < videos.lastIndex -> switchToIndex(currentIndex + 1)
-                                    totalDrag > 120f && currentIndex > 0 -> switchToIndex(currentIndex - 1)
+                                    totalHorizontalDrag < 0f && currentIndex < videos.lastIndex -> switchToIndex(currentIndex + 1)
+                                    totalHorizontalDrag > 0f && currentIndex > 0 -> switchToIndex(currentIndex - 1)
                                 }
                             }
+                            totalHorizontalDrag = 0f
+                            horizontalSeekDeltaMs = 0L
                         }
                     )
                 }
