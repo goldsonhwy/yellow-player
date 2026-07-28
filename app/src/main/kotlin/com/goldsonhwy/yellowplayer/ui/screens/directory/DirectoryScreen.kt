@@ -372,7 +372,7 @@ fun DirectoryScreen(
                                     selectedPaths = if (video.path in selectedPaths) selectedPaths - video.path else selectedPaths + video.path
                                     return@VideoThumbnailCard
                                 }
-                                val idx = uiState.videos.indexOf(video)
+                                val idx = sortedVideos.indexOf(video)
                                 navController.navigate(
                                     Routes.player(source, if (source == VideoSource.SAMBA) "${serverId}|${uiState.currentFolderPath}" else uiState.currentFolderPath, idx)
                                 )

@@ -1,6 +1,7 @@
 package com.goldsonhwy.yellowplayer.ui.screens.player
 
 import android.app.Application
+import android.content.Context
 import android.util.Log
 import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.viewModelScope
@@ -40,14 +41,14 @@ class PlayerViewModel(application: Application) : AndroidViewModel(application) 
                     source == VideoSource.LOCAL || source == VideoSource.SAMBA -> {
                         val videos = withTimeoutOrNull(60_000L) {
                             withContext(Dispatchers.IO) {
-                                if (source == VideoSource.SAMBA) {
-                                    repository.listSambaVideosById(
-                                        folderPath.substringBefore('|').toLongOrNull() ?: 0L,
-                                        folderPath.substringAfter('|', folderPath)
-                                    ).getOrElse { emptyList() }
+                                val rawVideos = if (source == VideoSource.SAMBA) {
+                                    val serverId = folderPath.substringBefore('|').toLongOrNull() ?: 0L
+                                    val realFolderPath = folderPath.substringAfter('|', folderPath)
+                                    repository.listSambaVideosById(serverId, realFolderPath).getOrElse { emptyList() }
                                 } else {
                                     repository.getVideosInLocalFolder(folderPath)
                                 }
+                                sortVideosForDirectory(source, folderPath, rawVideos)
                             }
                         }
                         _uiState.value = if (videos == null) {
@@ -64,6 +65,24 @@ class PlayerViewModel(application: Application) : AndroidViewModel(application) 
                 Log.e(TAG, "loadVideos failed", t)
                 _uiState.value = PlayerUiState(error = "加载视频失败：${t.javaClass.simpleName}\n${t.message.orEmpty()}")
             }
+        }
+    }
+
+    private fun sortVideosForDirectory(source: VideoSource, folderPath: String, videos: List<VideoInfo>): List<VideoInfo> {
+        val app = getApplication<Application>()
+        val (serverId, realFolderPath) = if (source == VideoSource.SAMBA) {
+            (folderPath.substringBefore('|').toLongOrNull() ?: 0L) to folderPath.substringAfter('|', folderPath)
+        } else {
+            0L to folderPath
+        }
+        val sortKey = "${source.name}_${serverId}_${realFolderPath.hashCode()}"
+        val sortMode = app.getSharedPreferences("directory_sort", Context.MODE_PRIVATE)
+            .getString(sortKey, "name") ?: "name"
+        return when (sortMode) {
+            "date" -> videos.sortedByDescending { it.dateModified }
+            "size" -> videos.sortedByDescending { it.size }
+            "name_desc" -> videos.sortedByDescending { it.name }
+            else -> videos.sortedBy { it.name }
         }
     }
 
