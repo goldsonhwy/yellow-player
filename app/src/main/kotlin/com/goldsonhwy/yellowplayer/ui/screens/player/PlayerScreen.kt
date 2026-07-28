@@ -153,7 +153,11 @@ fun PlayerScreen(
         onDispose {
             if (window != null) {
                 WindowInsetsControllerCompat(window, window.decorView).show(WindowInsetsCompat.Type.statusBars())
-                WindowCompat.setDecorFitsSystemWindows(window, true)
+                // MainActivity enables edge-to-edge globally. Restoring decorFitsSystemWindows=true
+                // here makes the browser Scaffold receive duplicated system-bar insets after leaving
+                // the player, which visually pushes the whole gallery downward. Keep the app's
+                // original edge-to-edge layout mode and only bring the status bar back.
+                WindowCompat.setDecorFitsSystemWindows(window, false)
             }
         }
     }
