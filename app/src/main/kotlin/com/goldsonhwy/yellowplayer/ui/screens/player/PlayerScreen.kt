@@ -27,7 +27,6 @@ import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.foundation.gestures.awaitEachGesture
 import androidx.compose.foundation.gestures.awaitFirstDown
 import androidx.compose.foundation.gestures.waitForUpOrCancellation
-import androidx.compose.ui.unit.IntOffset
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
@@ -83,7 +82,6 @@ fun PlayerScreen(
     var actualSpeed by remember { mutableFloatStateOf(1f) }
     var lastShortTapAt by remember { mutableLongStateOf(0L) }
     var playerResizeMode by remember { mutableIntStateOf(AspectRatioFrameLayout.RESIZE_MODE_ZOOM) }
-    var verticalDragOffset by remember { mutableFloatStateOf(0f) }
 
     LaunchedEffect(source, folderPath) {
         viewModel.loadVideos(source, folderPath)
@@ -284,7 +282,6 @@ fun PlayerScreen(
                 },
                 modifier = Modifier
                     .fillMaxSize()
-                    .offset { IntOffset(0, verticalDragOffset.roundToInt()) }
                     .padding(top = 34.dp, bottom = 106.dp)
             )
         }
@@ -388,7 +385,7 @@ fun PlayerScreen(
                                     progress = value.coerceIn(0f, 1f)
                                 }
                             },
-                            modifier = Modifier.fillMaxWidth(),
+                            modifier = Modifier.fillMaxWidth(0.95f),
                             colors = androidx.compose.material3.SliderDefaults.colors(
                                 thumbColor = Yellow500,
                                 activeTrackColor = Yellow500,
@@ -455,7 +452,7 @@ fun PlayerScreen(
         }
 
         // Gesture layer:
-        // - 上下滑动：像抖音一样切换视频；拖动时视频画面跟着手指上下移动。
+        // - 上下滑动：直接切换视频，不做拖动跟随/淡入淡出动画。
         // - 左右滑动：恢复四个横向进度区，越靠下越快。
         // - 底部进度条/按钮区域不覆盖，避免阻挡 Slider 和按钮点击。
         Box(
@@ -536,12 +533,10 @@ fun PlayerScreen(
                     detectVerticalDragGestures(
                         onDragStart = {
                             totalVerticalDrag = 0f
-                            verticalDragOffset = 0f
                         },
                         onVerticalDrag = { change, dragAmount ->
                             change.consume()
                             totalVerticalDrag += dragAmount
-                            verticalDragOffset = totalVerticalDrag.coerceIn(-size.height.toFloat(), size.height.toFloat())
                         },
                         onDragEnd = {
                             if (videos.isNotEmpty() && abs(totalVerticalDrag) >= 120f) {
@@ -551,11 +546,9 @@ fun PlayerScreen(
                                 }
                             }
                             totalVerticalDrag = 0f
-                            verticalDragOffset = 0f
                         },
                         onDragCancel = {
                             totalVerticalDrag = 0f
-                            verticalDragOffset = 0f
                         }
                     )
                 }
