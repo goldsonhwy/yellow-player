@@ -2,6 +2,10 @@ package com.goldsonhwy.yellowplayer.ui.screens.player
 
 import android.app.Application
 import android.content.Context
+import android.media.MediaCodec
+import android.media.MediaExtractor
+import android.media.MediaFormat
+import android.media.MediaMuxer
 import android.util.Log
 import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.viewModelScope
@@ -16,6 +20,8 @@ import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import kotlinx.coroutines.withTimeoutOrNull
+import java.io.File
+import java.nio.ByteBuffer
 
 private const val TAG = "PlayerViewModel"
 
@@ -110,4 +116,118 @@ class PlayerViewModel(application: Application) : AndroidViewModel(application) 
             repository.prefetchSmbHeader(serverId, remotePath)
         }
     }
+
+    suspend fun getVideoRotation(path: String): Int = withContext(Dispatchers.IO) {
+        val prefs = getApplication<Application>().getSharedPreferences("video_rotation", Context.MODE_PRIVATE)
+        prefs.getInt(path, 0).floorMod360()
+    }
+
+    fun saveVideoRotation(path: String, rotation: Int) {
+        if (path.isBlank()) return
+        val normalized = rotation.floorMod360()
+        getApplication<Application>().getSharedPreferences("video_rotation", Context.MODE_PRIVATE)
+            .edit().putInt(path, normalized).apply()
+    }
+
+    fun persistRotationMetadataAfterReleaseAsync(path: String, rotation: Int, source: VideoSource) {
+        if (source != VideoSource.LOCAL && source != VideoSource.EXTERNAL) return
+        val normalized = rotation.floorMod360()
+        viewModelScope.launch(Dispatchers.IO) {
+            runCatching {
+                if (canTryMetadataRotation(path)) {
+                    if (remuxVideoWithRotationMetadata(path, normalized)) {
+                        Log.i(TAG, "Rotation metadata written without transcoding: $path -> $normalized")
+                    } else {
+                        Log.i(TAG, "Rotation metadata unsupported; using playback rotation only: $path -> $normalized")
+                    }
+                }
+            }.onFailure { t ->
+                Log.w(TAG, "persistRotationMetadataAfterRelease skipped/failed for $path", t)
+            }
+        }
+    }
+
+    private fun canTryMetadataRotation(path: String): Boolean {
+        val file = File(path)
+        if (!file.exists() || !file.isFile || !file.canRead() || !file.canWrite()) return false
+        val ext = file.extension.lowercase()
+        return ext == "mp4" || ext == "m4v" || ext == "3gp" || ext == "3gpp"
+    }
+
+    private fun remuxVideoWithRotationMetadata(path: String, rotation: Int): Boolean {
+        val input = File(path)
+        val parent = input.parentFile ?: return false
+        val tmp = File(parent, ".${input.name}.rotate.tmp.mp4")
+        val backup = File(parent, ".${input.name}.rotate.bak")
+        tmp.delete()
+        backup.delete()
+
+        val extractor = MediaExtractor()
+        var muxer: MediaMuxer? = null
+        return try {
+            extractor.setDataSource(input.absolutePath)
+            muxer = MediaMuxer(tmp.absolutePath, MediaMuxer.OutputFormat.MUXER_OUTPUT_MPEG_4).apply {
+                setOrientationHint(rotation)
+            }
+
+            val trackMap = mutableMapOf<Int, Int>()
+            var maxInputSize = 1 * 1024 * 1024
+            for (i in 0 until extractor.trackCount) {
+                val format = extractor.getTrackFormat(i)
+                val mime = format.getString(MediaFormat.KEY_MIME).orEmpty()
+                if (mime.startsWith("video/") || mime.startsWith("audio/")) {
+                    val outputTrack = muxer.addTrack(format)
+                    trackMap[i] = outputTrack
+                    extractor.selectTrack(i)
+                    if (format.containsKey(MediaFormat.KEY_MAX_INPUT_SIZE)) {
+                        maxInputSize = maxOf(maxInputSize, format.getInteger(MediaFormat.KEY_MAX_INPUT_SIZE))
+                    }
+                }
+            }
+            if (trackMap.isEmpty()) return false
+
+            val buffer = ByteBuffer.allocate(maxInputSize)
+            val info = MediaCodec.BufferInfo()
+            muxer.start()
+
+            while (true) {
+                val inputTrack = extractor.sampleTrackIndex
+                if (inputTrack < 0) break
+                val outputTrack = trackMap[inputTrack]
+                if (outputTrack == null) {
+                    extractor.advance()
+                    continue
+                }
+                buffer.clear()
+                val sampleSize = extractor.readSampleData(buffer, 0)
+                if (sampleSize < 0) break
+                info.set(0, sampleSize, extractor.sampleTime.coerceAtLeast(0L), extractor.sampleFlags)
+                muxer.writeSampleData(outputTrack, buffer, info)
+                extractor.advance()
+            }
+
+            muxer.stop()
+            muxer.release()
+            muxer = null
+            extractor.release()
+
+            if (tmp.length() <= 0L) return false
+            if (!input.renameTo(backup)) return false
+            if (!tmp.renameTo(input)) {
+                backup.renameTo(input)
+                return false
+            }
+            backup.delete()
+            true
+        } catch (t: Throwable) {
+            runCatching { muxer?.release() }
+            runCatching { extractor.release() }
+            tmp.delete()
+            if (backup.exists() && !input.exists()) backup.renameTo(input)
+            Log.w(TAG, "remuxVideoWithRotationMetadata failed: $path", t)
+            false
+        }
+    }
 }
+
+private fun Int.floorMod360(): Int = ((this % 360) + 360) % 360

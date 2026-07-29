@@ -17,6 +17,7 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Delete
 import androidx.compose.material.icons.filled.Favorite
 import androidx.compose.material.icons.filled.FavoriteBorder
+import androidx.compose.material.icons.filled.RotateRight
 import androidx.compose.material.icons.filled.Share
 import androidx.compose.material.icons.filled.SkipNext
 import androidx.compose.material.icons.filled.SkipPrevious
@@ -89,6 +90,9 @@ fun PlayerScreen(
     var playerResizeMode by remember { mutableIntStateOf(AspectRatioFrameLayout.RESIZE_MODE_ZOOM) }
     var videoScale by remember { mutableFloatStateOf(1f) }
     var suppressSingleFingerGestures by remember { mutableStateOf(false) }
+    var videoRotation by remember { mutableIntStateOf(0) }
+    var longPressSpeedBefore by remember { mutableFloatStateOf(1f) }
+    var isLongPressSpeedActive by remember { mutableStateOf(false) }
     val verticalDragOffset = remember { Animatable(0f) }
 
     LaunchedEffect(source, folderPath) {
@@ -209,6 +213,15 @@ fun PlayerScreen(
     LaunchedEffect(videos.getOrNull(currentIndex)?.path) {
         val video = videos.getOrNull(currentIndex)
         isFavorite = if (video != null) viewModel.isFavorite(video.path) else false
+        videoRotation = if (video != null) viewModel.getVideoRotation(video.path) else 0
+    }
+
+    LaunchedEffect(suppressSingleFingerGestures) {
+        if (suppressSingleFingerGestures && isLongPressSpeedActive) {
+            player.setPlaybackSpeed(longPressSpeedBefore)
+            actualSpeed = longPressSpeedBefore
+            isLongPressSpeedActive = false
+        }
     }
 
     fun toggleCurrentFavorite(showAnimation: Boolean = true) {
@@ -271,13 +284,22 @@ fun PlayerScreen(
         player.pause()
     }
 
+    fun rotateCurrentVideoClockwise() {
+        val video = videos.getOrNull(currentIndex) ?: return
+        val newRotation = (videoRotation + 90).floorMod360()
+        videoRotation = newRotation
+        viewModel.saveVideoRotation(video.path, newRotation)
+    }
+
     fun switchToIndex(newIndex: Int) {
         val oldPath = videos.getOrNull(currentIndex)?.path
+        val oldRotation = videoRotation
         currentIndex = newIndex.coerceIn(0, videos.lastIndex)
         if (oldPath != null) {
             scope.launch {
                 delay(350)
                 viewModel.moveFavoriteAfterRelease(oldPath)
+                viewModel.persistRotationMetadataAfterReleaseAsync(oldPath, oldRotation, source)
             }
         }
     }
@@ -305,6 +327,7 @@ fun PlayerScreen(
                     .graphicsLayer {
                         scaleX = videoScale
                         scaleY = videoScale
+                        rotationZ = videoRotation.toFloat()
                         translationY = verticalDragOffset.value
                     }
             )
@@ -324,7 +347,21 @@ fun PlayerScreen(
                     horizontalArrangement = Arrangement.SpaceEvenly,
                     verticalAlignment = Alignment.CenterVertically
                 ) {
-                    listOf(0.5f, 1f, 1.5f, 2f, 3f, 4f).forEach { speed ->
+                    androidx.compose.material3.Surface(
+                        modifier = Modifier.clickable { rotateCurrentVideoClockwise() },
+                        shape = androidx.compose.material3.MaterialTheme.shapes.extraLarge,
+                        color = DarkSurfaceVariant
+                    ) {
+                        Row(
+                            verticalAlignment = Alignment.CenterVertically,
+                            modifier = Modifier.padding(horizontal = 7.dp, vertical = 3.dp)
+                        ) {
+                            Icon(Icons.Default.RotateRight, "旋转", tint = Yellow500, modifier = Modifier.size(14.dp))
+                            Spacer(Modifier.width(2.dp))
+                            androidx.compose.material3.Text("${videoRotation}°", color = Yellow500, fontSize = 11.sp)
+                        }
+                    }
+                    listOf(1f, 1.5f, 2f, 3f, 4f).forEach { speed ->
                         androidx.compose.material3.Surface(
                             modifier = Modifier.clickable {
                                 currentSpeed = speed
@@ -500,6 +537,11 @@ fun PlayerScreen(
                                     videoScale = (videoScale * zoom).coerceIn(0.5f, 5.0f)
                                 }
                                 event.changes.forEach { it.consume() }
+                                if (isLongPressSpeedActive) {
+                                    player.setPlaybackSpeed(longPressSpeedBefore)
+                                    actualSpeed = longPressSpeedBefore
+                                    isLongPressSpeedActive = false
+                                }
                             }
                         } while (event.changes.any { it.pressed })
                         if (sawMultiTouch) suppressSingleFingerGestures = true
@@ -532,12 +574,15 @@ fun PlayerScreen(
                             }
                         } else {
                             val speedBeforeLongPress = currentSpeed
+                            longPressSpeedBefore = speedBeforeLongPress
+                            isLongPressSpeedActive = true
                             val temporarySpeed = (speedBeforeLongPress * longPressSpeed).coerceIn(0.1f, 25f)
                             player.setPlaybackSpeed(temporarySpeed)
                             actualSpeed = temporarySpeed
                             waitForUpOrCancellation()
                             player.setPlaybackSpeed(speedBeforeLongPress)
                             actualSpeed = speedBeforeLongPress
+                            isLongPressSpeedActive = false
                         }
                     }
                 }
@@ -646,6 +691,8 @@ private fun CapsuleIconButton(
         }
     }
 }
+private fun Int.floorMod360(): Int = ((this % 360) + 360) % 360
+
 private fun formatPlayerTime(millis: Long): String {
     val totalSec = (millis / 1000).coerceAtLeast(0L)
     val hours = totalSec / 3600
