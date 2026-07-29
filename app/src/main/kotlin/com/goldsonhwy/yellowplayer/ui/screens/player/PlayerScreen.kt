@@ -4,6 +4,8 @@ import android.content.Intent
 import android.app.Activity
 import android.net.Uri
 import android.widget.Toast
+import androidx.compose.animation.core.Animatable
+import androidx.compose.animation.core.tween
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.gestures.calculateZoom
@@ -86,8 +88,8 @@ fun PlayerScreen(
     var lastShortTapAt by remember { mutableLongStateOf(0L) }
     var playerResizeMode by remember { mutableIntStateOf(AspectRatioFrameLayout.RESIZE_MODE_ZOOM) }
     var videoScale by remember { mutableFloatStateOf(1f) }
-    var showScaleIndicator by remember { mutableStateOf(false) }
     var suppressSingleFingerGestures by remember { mutableStateOf(false) }
+    val verticalDragOffset = remember { Animatable(0f) }
 
     LaunchedEffect(source, folderPath) {
         viewModel.loadVideos(source, folderPath)
@@ -141,13 +143,6 @@ fun PlayerScreen(
         if (showLikeAnimation) {
             delay(700)
             showLikeAnimation = false
-        }
-    }
-
-    LaunchedEffect(showScaleIndicator, videoScale) {
-        if (showScaleIndicator) {
-            delay(800)
-            showScaleIndicator = false
         }
     }
 
@@ -310,6 +305,7 @@ fun PlayerScreen(
                     .graphicsLayer {
                         scaleX = videoScale
                         scaleY = videoScale
+                        translationY = verticalDragOffset.value
                     }
             )
         }
@@ -378,22 +374,6 @@ fun PlayerScreen(
                     tint = LikeRed,
                     modifier = Modifier.size(132.dp)
                 )
-            }
-        }
-
-        if (showScaleIndicator) {
-            Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
-                androidx.compose.material3.Surface(
-                    shape = androidx.compose.material3.MaterialTheme.shapes.extraLarge,
-                    color = Black.copy(alpha = 0.68f)
-                ) {
-                    androidx.compose.material3.Text(
-                        text = "缩放 ${"%.1f".format(videoScale)}x",
-                        color = Yellow500,
-                        fontSize = 18.sp,
-                        modifier = Modifier.padding(horizontal = 18.dp, vertical = 10.dp)
-                    )
-                }
             }
         }
 
@@ -497,7 +477,7 @@ fun PlayerScreen(
 
         // Gesture layer:
         // - 双指缩放：手动控制当前播放器会话的视频大小；切换视频不复位，退出播放器才恢复默认。
-        // - 上下滑动：直接切换视频，不做拖动跟随/淡入淡出动画。
+        // - 上下滑动：1.0x 时使用 TikTok 式拖动跟随和滑出切换；缩放后禁用单指上下切换。
         // - 左右滑动：恢复四个横向进度区，越靠下越快。
         // - 底部进度条/按钮区域不覆盖，避免阻挡 Slider 和按钮点击。
         Box(
@@ -517,8 +497,7 @@ fun PlayerScreen(
                                 suppressSingleFingerGestures = true
                                 val zoom = event.calculateZoom()
                                 if (zoom.isFinite() && zoom != 1f) {
-                                    videoScale = (videoScale * zoom).coerceIn(0.75f, 3.0f)
-                                    showScaleIndicator = true
+                                    videoScale = (videoScale * zoom).coerceIn(0.5f, 5.0f)
                                 }
                                 event.changes.forEach { it.consume() }
                             }
@@ -597,27 +576,49 @@ fun PlayerScreen(
                         }
                     )
                 }
-                .pointerInput(videos, currentIndex, suppressSingleFingerGestures) {
+                .pointerInput(videos, currentIndex, suppressSingleFingerGestures, videoScale) {
                     var totalVerticalDrag = 0f
                     detectVerticalDragGestures(
                         onDragStart = {
                             totalVerticalDrag = 0f
                         },
                         onVerticalDrag = { change, dragAmount ->
-                            if (suppressSingleFingerGestures || change.pressed != true) return@detectVerticalDragGestures
+                            if (suppressSingleFingerGestures || change.pressed != true || videoScale != 1f) return@detectVerticalDragGestures
                             change.consume()
                             totalVerticalDrag += dragAmount
+                            scope.launch { verticalDragOffset.snapTo(verticalDragOffset.value + dragAmount) }
                         },
                         onDragEnd = {
-                            if (videos.isNotEmpty() && abs(totalVerticalDrag) >= 120f) {
-                                when {
-                                    totalVerticalDrag < 0f && currentIndex < videos.lastIndex -> switchToIndex(currentIndex + 1)
-                                    totalVerticalDrag > 0f && currentIndex > 0 -> switchToIndex(currentIndex - 1)
+                            if (videoScale != 1f) {
+                                totalVerticalDrag = 0f
+                                return@detectVerticalDragGestures
+                            }
+                            scope.launch {
+                                if (videos.isNotEmpty() && abs(totalVerticalDrag) >= 120f) {
+                                    val direction = when {
+                                        totalVerticalDrag < 0f && currentIndex < videos.lastIndex -> -1f
+                                        totalVerticalDrag > 0f && currentIndex > 0 -> 1f
+                                        else -> 0f
+                                    }
+                                    if (direction != 0f) {
+                                        verticalDragOffset.animateTo(direction * size.height, animationSpec = tween(180))
+                                        when {
+                                            direction < 0f -> switchToIndex(currentIndex + 1)
+                                            direction > 0f -> switchToIndex(currentIndex - 1)
+                                        }
+                                        verticalDragOffset.snapTo(-direction * size.height)
+                                        verticalDragOffset.animateTo(0f, animationSpec = tween(180))
+                                    } else {
+                                        verticalDragOffset.animateTo(0f, animationSpec = tween(160))
+                                    }
+                                } else {
+                                    verticalDragOffset.animateTo(0f, animationSpec = tween(160))
                                 }
                             }
                             totalVerticalDrag = 0f
                         },
                         onDragCancel = {
+                            scope.launch { verticalDragOffset.animateTo(0f, animationSpec = tween(160)) }
                             totalVerticalDrag = 0f
                         }
                     )
