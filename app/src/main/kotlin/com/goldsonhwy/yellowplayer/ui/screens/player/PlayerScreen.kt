@@ -477,7 +477,7 @@ fun PlayerScreen(
 
         // Gesture layer:
         // - 双指缩放：手动控制当前播放器会话的视频大小；切换视频不复位，退出播放器才恢复默认。
-        // - 上下滑动：1.0x 时使用 TikTok 式拖动跟随和滑出切换；缩放后禁用单指上下切换。
+        // - 上下滑动：使用 TikTok 式拖动跟随和滑出切换；缩放后仍然允许单指上下切换。
         // - 左右滑动：恢复四个横向进度区，越靠下越快。
         // - 底部进度条/按钮区域不覆盖，避免阻挡 Slider 和按钮点击。
         Box(
@@ -576,28 +576,26 @@ fun PlayerScreen(
                         }
                     )
                 }
-                .pointerInput(videos, currentIndex, suppressSingleFingerGestures, videoScale) {
+                .pointerInput(videos, currentIndex, suppressSingleFingerGestures) {
                     var totalVerticalDrag = 0f
                     detectVerticalDragGestures(
                         onDragStart = {
                             totalVerticalDrag = 0f
                         },
                         onVerticalDrag = { change, dragAmount ->
-                            if (suppressSingleFingerGestures || change.pressed != true || videoScale != 1f) return@detectVerticalDragGestures
+                            if (suppressSingleFingerGestures || change.pressed != true) return@detectVerticalDragGestures
                             change.consume()
                             totalVerticalDrag += dragAmount
                             scope.launch { verticalDragOffset.snapTo(verticalDragOffset.value + dragAmount) }
                         },
                         onDragEnd = {
-                            if (videoScale != 1f) {
-                                totalVerticalDrag = 0f
-                                return@detectVerticalDragGestures
-                            }
+                            val dragDistance = totalVerticalDrag
+                            totalVerticalDrag = 0f
                             scope.launch {
-                                if (videos.isNotEmpty() && abs(totalVerticalDrag) >= 120f) {
+                                if (videos.isNotEmpty() && abs(dragDistance) >= 120f) {
                                     val direction = when {
-                                        totalVerticalDrag < 0f && currentIndex < videos.lastIndex -> -1f
-                                        totalVerticalDrag > 0f && currentIndex > 0 -> 1f
+                                        dragDistance < 0f && currentIndex < videos.lastIndex -> -1f
+                                        dragDistance > 0f && currentIndex > 0 -> 1f
                                         else -> 0f
                                     }
                                     if (direction != 0f) {
@@ -615,7 +613,6 @@ fun PlayerScreen(
                                     verticalDragOffset.animateTo(0f, animationSpec = tween(160))
                                 }
                             }
-                            totalVerticalDrag = 0f
                         },
                         onDragCancel = {
                             scope.launch { verticalDragOffset.animateTo(0f, animationSpec = tween(160)) }
