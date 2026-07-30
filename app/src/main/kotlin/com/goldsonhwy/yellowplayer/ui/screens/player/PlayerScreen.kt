@@ -3,6 +3,8 @@ package com.goldsonhwy.yellowplayer.ui.screens.player
 import android.app.Activity
 import android.content.Intent
 import android.net.Uri
+import android.view.LayoutInflater
+import android.view.TextureView
 import android.widget.Toast
 import androidx.compose.animation.core.Animatable
 import androidx.compose.animation.core.tween
@@ -54,6 +56,7 @@ import androidx.media3.ui.PlayerView
 import androidx.media3.ui.AspectRatioFrameLayout
 import androidx.navigation.NavController
 import com.goldsonhwy.yellowplayer.data.model.VideoSource
+import com.goldsonhwy.yellowplayer.R
 import com.goldsonhwy.yellowplayer.smb.SmbStreamDataSource
 import com.goldsonhwy.yellowplayer.ui.theme.*
 import kotlinx.coroutines.delay
@@ -309,10 +312,9 @@ fun PlayerScreen(
 
     fun switchToIndex(newIndex: Int) {
         val oldPath = videos.getOrNull(currentIndex)?.path
-        val oldRotation = videoRotation
         currentIndex = newIndex.coerceIn(0, videos.lastIndex)
         if (oldPath != null) {
-            viewModel.finalizeVideoAfterSwitchAsync(oldPath, oldRotation, source)
+            viewModel.finalizeVideoAfterSwitchAsync(oldPath)
         }
     }
 
@@ -323,17 +325,19 @@ fun PlayerScreen(
         if (videos.isNotEmpty()) {
             AndroidView(
                 factory = { ctx ->
-                    PlayerView(ctx).apply {
+                    (LayoutInflater.from(ctx).inflate(R.layout.view_player_texture, null, false) as PlayerView).apply {
                         this.player = player
                         useController = false
                         resizeMode = playerResizeMode
-                        rotation = videoRotation.toFloat()
                         keepScreenOn = true
                     }
                 },
                 update = { view ->
                     view.resizeMode = playerResizeMode
-                    view.rotation = videoRotation.toFloat()
+                    val textureView = view.videoSurfaceView as? TextureView
+                    textureView?.post {
+                        applyTextureRotation(textureView, videoRotation)
+                    }
                 },
                 modifier = Modifier
                     .fillMaxSize()
@@ -716,6 +720,24 @@ private fun CapsuleIconButton(
     }
 }
 private fun Int.floorMod360(): Int = ((this % 360) + 360) % 360
+
+private fun applyTextureRotation(textureView: TextureView, rotation: Int) {
+    val normalized = rotation.floorMod360()
+    val width = textureView.width.toFloat()
+    val height = textureView.height.toFloat()
+    if (width <= 0f || height <= 0f) return
+
+    textureView.pivotX = width / 2f
+    textureView.pivotY = height / 2f
+    textureView.rotation = normalized.toFloat()
+    val scale = if (normalized == 90 || normalized == 270) {
+        minOf(width / height, height / width)
+    } else {
+        1f
+    }
+    textureView.scaleX = scale
+    textureView.scaleY = scale
+}
 
 private fun formatPlayerTime(millis: Long): String {
     val totalSec = (millis / 1000).coerceAtLeast(0L)
