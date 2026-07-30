@@ -1,7 +1,7 @@
 package com.goldsonhwy.yellowplayer.ui.screens.player
 
-import android.content.Intent
 import android.app.Activity
+import android.content.Intent
 import android.net.Uri
 import android.widget.Toast
 import androidx.compose.animation.core.Animatable
@@ -41,6 +41,9 @@ import androidx.core.content.FileProvider
 import androidx.core.view.WindowCompat
 import androidx.core.view.WindowInsetsCompat
 import androidx.core.view.WindowInsetsControllerCompat
+import androidx.lifecycle.Lifecycle
+import androidx.lifecycle.LifecycleEventObserver
+import androidx.lifecycle.LifecycleOwner
 import androidx.lifecycle.viewmodel.compose.viewModel
 import androidx.media3.common.MediaItem
 import androidx.media3.common.Player
@@ -69,6 +72,7 @@ fun PlayerScreen(
     viewModel: PlayerViewModel = viewModel()
 ) {
     val context = LocalContext.current
+    val lifecycleOwner = context as? LifecycleOwner
     val scope = rememberCoroutineScope()
     val uiState by viewModel.uiState.collectAsState()
 
@@ -110,6 +114,23 @@ fun PlayerScreen(
             .build().apply {
             playWhenReady = true
             repeatMode = Player.REPEAT_MODE_ONE
+        }
+    }
+
+    DisposableEffect(lifecycleOwner, player) {
+        if (lifecycleOwner == null) {
+            onDispose { }
+        } else {
+            val observer = LifecycleEventObserver { _, event ->
+                if (event == Lifecycle.Event.ON_STOP) {
+                    val allowBackgroundPlayback = context.getSharedPreferences(
+                        "player_prefs", android.content.Context.MODE_PRIVATE
+                    ).getBoolean("background_playback_enabled", false)
+                    if (!allowBackgroundPlayback) player.pause()
+                }
+            }
+            lifecycleOwner.lifecycle.addObserver(observer)
+            onDispose { lifecycleOwner.lifecycle.removeObserver(observer) }
         }
     }
 
@@ -306,11 +327,13 @@ fun PlayerScreen(
                         this.player = player
                         useController = false
                         resizeMode = playerResizeMode
+                        rotation = videoRotation.toFloat()
                         keepScreenOn = true
                     }
                 },
                 update = { view ->
                     view.resizeMode = playerResizeMode
+                    view.rotation = videoRotation.toFloat()
                 },
                 modifier = Modifier
                     .fillMaxSize()
@@ -318,7 +341,6 @@ fun PlayerScreen(
                     .graphicsLayer {
                         scaleX = videoScale
                         scaleY = videoScale
-                        rotationZ = videoRotation.toFloat()
                         translationY = verticalDragOffset.value
                     }
             )

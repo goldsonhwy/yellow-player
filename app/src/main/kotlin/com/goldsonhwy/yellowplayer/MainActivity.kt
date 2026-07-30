@@ -1,6 +1,8 @@
 package com.goldsonhwy.yellowplayer
 
 import android.os.Bundle
+import androidx.lifecycle.Lifecycle
+import androidx.lifecycle.LifecycleEventObserver
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
 import androidx.activity.enableEdgeToEdge
@@ -33,6 +35,16 @@ class MainActivity : ComponentActivity() {
                         .getBoolean(PRIVACY_ENABLED, false)
                 }
                 var unlocked by remember { mutableStateOf(!privacyEnabled) }
+
+                DisposableEffect(privacyEnabled) {
+                    val observer = LifecycleEventObserver { _, event ->
+                        if (privacyEnabled && event == Lifecycle.Event.ON_STOP) {
+                            unlocked = false
+                        }
+                    }
+                    lifecycle.addObserver(observer)
+                    onDispose { lifecycle.removeObserver(observer) }
+                }
 
                 if (unlocked) {
                     Surface(

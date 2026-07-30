@@ -34,6 +34,7 @@ fun SettingsScreen(navController: NavController) {
     val uiPrefs = remember { context.getSharedPreferences("ui_prefs", android.content.Context.MODE_PRIVATE) }
     val privacyPrefs = remember { context.getSharedPreferences("privacy_prefs", android.content.Context.MODE_PRIVATE) }
     var longPressSpeed by remember { mutableFloatStateOf(playerPrefs.getFloat("long_press_speed", 2f)) }
+    var backgroundPlaybackEnabled by remember { mutableStateOf(playerPrefs.getBoolean("background_playback_enabled", false)) }
     var thumbnailSize by remember { mutableIntStateOf(uiPrefs.getInt("thumbnail_size", 180)) }
     var privacyModeEnabled by remember { mutableStateOf(privacyPrefs.getBoolean("privacy_mode_enabled", false)) }
     var showSpeedDialog by remember { mutableStateOf(false) }
@@ -69,7 +70,7 @@ fun SettingsScreen(navController: NavController) {
                 type = "application/zip"
                 putExtra(Intent.EXTRA_STREAM, uri)
                 putExtra(Intent.EXTRA_SUBJECT, "Yellow Shorts 调试日志")
-                putExtra(Intent.EXTRA_TEXT, "Yellow Shorts v4.2 调试日志/崩溃日志")
+                putExtra(Intent.EXTRA_TEXT, "Yellow Shorts v4.3 调试日志/崩溃日志")
                 addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)
             }
             context.startActivity(Intent.createChooser(intent, "导出调试日志"))
@@ -107,6 +108,19 @@ fun SettingsScreen(navController: NavController) {
                 title = "长按倍速",
                 subtitle = "长按时使用 ${longPressSpeed}x 速度播放",
                 onClick = { showSpeedDialog = true }
+            )
+
+            Divider(color = DarkSurfaceVariant, modifier = Modifier.padding(vertical = 4.dp))
+
+            ToggleSettingsItem(
+                icon = Icons.Default.Headphones,
+                title = "后台播放",
+                subtitle = "熄屏或切到后台后继续播放音频",
+                checked = backgroundPlaybackEnabled,
+                onCheckedChange = { enabled ->
+                    backgroundPlaybackEnabled = enabled
+                    playerPrefs.edit().putBoolean("background_playback_enabled", enabled).apply()
+                }
             )
 
             Divider(color = DarkSurfaceVariant, modifier = Modifier.padding(vertical = 4.dp))
@@ -188,7 +202,7 @@ fun SettingsScreen(navController: NavController) {
             SettingsItem(
                 icon = Icons.Default.Info,
                 title = "版本",
-                subtitle = "4.2",
+                subtitle = "4.3",
                 onClick = {}
             )
 
