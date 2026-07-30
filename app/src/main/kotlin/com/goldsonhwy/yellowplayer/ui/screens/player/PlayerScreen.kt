@@ -90,6 +90,7 @@ fun PlayerScreen(
     var playerResizeMode by remember { mutableIntStateOf(AspectRatioFrameLayout.RESIZE_MODE_ZOOM) }
     var videoScale by remember { mutableFloatStateOf(1f) }
     var suppressSingleFingerGestures by remember { mutableStateOf(false) }
+    var isPinching by remember { mutableStateOf(false) }
     var videoRotation by remember { mutableIntStateOf(0) }
     var longPressSpeedBefore by remember { mutableFloatStateOf(1f) }
     var isLongPressSpeedActive by remember { mutableStateOf(false) }
@@ -150,12 +151,6 @@ fun PlayerScreen(
         }
     }
 
-    LaunchedEffect(suppressSingleFingerGestures) {
-        if (suppressSingleFingerGestures) {
-            delay(160)
-            suppressSingleFingerGestures = false
-        }
-    }
 
     val currentPathForDispose by rememberUpdatedState(videos.getOrNull(currentIndex)?.path)
 
@@ -216,8 +211,8 @@ fun PlayerScreen(
         videoRotation = if (video != null) viewModel.getVideoRotation(video.path) else 0
     }
 
-    LaunchedEffect(suppressSingleFingerGestures) {
-        if (suppressSingleFingerGestures && isLongPressSpeedActive) {
+    LaunchedEffect(isPinching) {
+        if (isPinching && isLongPressSpeedActive) {
             player.setPlaybackSpeed(longPressSpeedBefore)
             actualSpeed = longPressSpeedBefore
             isLongPressSpeedActive = false
@@ -296,11 +291,7 @@ fun PlayerScreen(
         val oldRotation = videoRotation
         currentIndex = newIndex.coerceIn(0, videos.lastIndex)
         if (oldPath != null) {
-            scope.launch {
-                delay(350)
-                viewModel.moveFavoriteAfterRelease(oldPath)
-                viewModel.persistRotationMetadataAfterReleaseAsync(oldPath, oldRotation, source)
-            }
+            viewModel.finalizeVideoAfterSwitchAsync(oldPath, oldRotation, source)
         }
     }
 
@@ -531,7 +522,7 @@ fun PlayerScreen(
                             val event = awaitPointerEvent(PointerEventPass.Initial)
                             if (event.changes.count { it.pressed } >= 2) {
                                 sawMultiTouch = true
-                                suppressSingleFingerGestures = true
+                                isPinching = true
                                 val zoom = event.calculateZoom()
                                 if (zoom.isFinite() && zoom != 1f) {
                                     videoScale = (videoScale * zoom).coerceIn(0.5f, 5.0f)
@@ -544,13 +535,20 @@ fun PlayerScreen(
                                 }
                             }
                         } while (event.changes.any { it.pressed })
-                        if (sawMultiTouch) suppressSingleFingerGestures = true
+                        if (sawMultiTouch) {
+                            isPinching = false
+                            suppressSingleFingerGestures = true
+                            scope.launch {
+                                delay(200L)
+                                suppressSingleFingerGestures = false
+                            }
+                        }
                     }
                 }
-                .pointerInput(currentSpeed, longPressSpeed, suppressSingleFingerGestures) {
+                .pointerInput(currentSpeed, longPressSpeed, suppressSingleFingerGestures, isPinching) {
                     awaitEachGesture {
                         awaitFirstDown(requireUnconsumed = false)
-                        if (suppressSingleFingerGestures) {
+                        if (suppressSingleFingerGestures || isPinching) {
                             waitForUpOrCancellation()
                             return@awaitEachGesture
                         }
@@ -573,27 +571,31 @@ fun PlayerScreen(
                                 }
                             }
                         } else {
+                            if (suppressSingleFingerGestures || isPinching) return@awaitEachGesture
                             val speedBeforeLongPress = currentSpeed
                             longPressSpeedBefore = speedBeforeLongPress
                             isLongPressSpeedActive = true
                             val temporarySpeed = (speedBeforeLongPress * longPressSpeed).coerceIn(0.1f, 25f)
                             player.setPlaybackSpeed(temporarySpeed)
                             actualSpeed = temporarySpeed
-                            waitForUpOrCancellation()
-                            player.setPlaybackSpeed(speedBeforeLongPress)
-                            actualSpeed = speedBeforeLongPress
-                            isLongPressSpeedActive = false
+                            try {
+                                waitForUpOrCancellation()
+                            } finally {
+                                player.setPlaybackSpeed(speedBeforeLongPress)
+                                actualSpeed = speedBeforeLongPress
+                                isLongPressSpeedActive = false
+                            }
                         }
                     }
                 }
-                .pointerInput(videos, currentIndex, suppressSingleFingerGestures) {
+                .pointerInput(videos, currentIndex, suppressSingleFingerGestures, isPinching) {
                     var horizontalSeekDeltaMs = 0L
                     detectHorizontalDragGestures(
                         onDragStart = {
                             horizontalSeekDeltaMs = 0L
                         },
                         onHorizontalDrag = { change, dragAmount ->
-                            if (suppressSingleFingerGestures || change.pressed != true) return@detectHorizontalDragGestures
+                            if (suppressSingleFingerGestures || isPinching || change.pressed != true) return@detectHorizontalDragGestures
                             change.consume()
                             val duration = player.duration.takeIf { it > 0 } ?: 0L
                             val screenH = size.height.coerceAtLeast(1)
@@ -621,14 +623,14 @@ fun PlayerScreen(
                         }
                     )
                 }
-                .pointerInput(videos, currentIndex, suppressSingleFingerGestures) {
+                .pointerInput(videos, currentIndex, suppressSingleFingerGestures, isPinching) {
                     var totalVerticalDrag = 0f
                     detectVerticalDragGestures(
                         onDragStart = {
                             totalVerticalDrag = 0f
                         },
                         onVerticalDrag = { change, dragAmount ->
-                            if (suppressSingleFingerGestures || change.pressed != true) return@detectVerticalDragGestures
+                            if (suppressSingleFingerGestures || isPinching || change.pressed != true) return@detectVerticalDragGestures
                             change.consume()
                             totalVerticalDrag += dragAmount
                             scope.launch { verticalDragOffset.snapTo(verticalDragOffset.value + dragAmount) }

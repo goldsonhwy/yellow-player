@@ -5,6 +5,7 @@ import android.content.Context
 import android.media.MediaCodec
 import android.media.MediaExtractor
 import android.media.MediaFormat
+import android.media.MediaMetadataRetriever
 import android.media.MediaMuxer
 import android.util.Log
 import androidx.lifecycle.AndroidViewModel
@@ -129,21 +130,27 @@ class PlayerViewModel(application: Application) : AndroidViewModel(application) 
             .edit().putInt(path, normalized).apply()
     }
 
-    fun persistRotationMetadataAfterReleaseAsync(path: String, rotation: Int, source: VideoSource) {
-        if (source != VideoSource.LOCAL && source != VideoSource.EXTERNAL) return
-        val normalized = rotation.floorMod360()
+    fun finalizeVideoAfterSwitchAsync(path: String, pendingRotation: Int, source: VideoSource) {
         viewModelScope.launch(Dispatchers.IO) {
-            runCatching {
-                if (canTryMetadataRotation(path)) {
-                    if (remuxVideoWithRotationMetadata(path, normalized)) {
-                        Log.i(TAG, "Rotation metadata written without transcoding: $path -> $normalized")
+            val normalizedPending = pendingRotation.floorMod360()
+            if ((source == VideoSource.LOCAL || source == VideoSource.EXTERNAL) &&
+                normalizedPending != 0 && canTryMetadataRotation(path)
+            ) {
+                runCatching {
+                    val existingRotation = readFileRotation(path)
+                    val targetRotation = (existingRotation + normalizedPending).floorMod360()
+                    if (remuxVideoWithRotationMetadata(path, targetRotation)) {
+                        getApplication<Application>().getSharedPreferences("video_rotation", Context.MODE_PRIVATE)
+                            .edit().remove(path).commit()
+                        Log.i(TAG, "Rotation metadata written without transcoding: $path -> $targetRotation")
                     } else {
-                        Log.i(TAG, "Rotation metadata unsupported; using playback rotation only: $path -> $normalized")
+                        Log.i(TAG, "Rotation metadata unsupported; keeping playback rotation: $path -> $normalizedPending")
                     }
+                }.onFailure { t ->
+                    Log.w(TAG, "Rotation metadata write failed; keeping playback rotation: $path", t)
                 }
-            }.onFailure { t ->
-                Log.w(TAG, "persistRotationMetadataAfterRelease skipped/failed for $path", t)
             }
+            repository.moveFavoriteAfterRelease(path)
         }
     }
 
@@ -152,6 +159,17 @@ class PlayerViewModel(application: Application) : AndroidViewModel(application) 
         if (!file.exists() || !file.isFile || !file.canRead() || !file.canWrite()) return false
         val ext = file.extension.lowercase()
         return ext == "mp4" || ext == "m4v" || ext == "3gp" || ext == "3gpp"
+    }
+
+    private fun readFileRotation(path: String): Int {
+        val retriever = MediaMetadataRetriever()
+        return try {
+            retriever.setDataSource(path)
+            retriever.extractMetadata(MediaMetadataRetriever.METADATA_KEY_VIDEO_ROTATION)
+                ?.toIntOrNull()?.floorMod360() ?: 0
+        } finally {
+            retriever.release()
+        }
     }
 
     private fun remuxVideoWithRotationMetadata(path: String, rotation: Int): Boolean {

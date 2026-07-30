@@ -32,8 +32,10 @@ fun SettingsScreen(navController: NavController) {
     val context = LocalContext.current
     val playerPrefs = remember { context.getSharedPreferences("player_prefs", android.content.Context.MODE_PRIVATE) }
     val uiPrefs = remember { context.getSharedPreferences("ui_prefs", android.content.Context.MODE_PRIVATE) }
+    val privacyPrefs = remember { context.getSharedPreferences("privacy_prefs", android.content.Context.MODE_PRIVATE) }
     var longPressSpeed by remember { mutableFloatStateOf(playerPrefs.getFloat("long_press_speed", 2f)) }
     var thumbnailSize by remember { mutableIntStateOf(uiPrefs.getInt("thumbnail_size", 180)) }
+    var privacyModeEnabled by remember { mutableStateOf(privacyPrefs.getBoolean("privacy_mode_enabled", false)) }
     var showSpeedDialog by remember { mutableStateOf(false) }
     var showThumbDialog by remember { mutableStateOf(false) }
     var showSortDialog by remember { mutableStateOf(false) }
@@ -67,7 +69,7 @@ fun SettingsScreen(navController: NavController) {
                 type = "application/zip"
                 putExtra(Intent.EXTRA_STREAM, uri)
                 putExtra(Intent.EXTRA_SUBJECT, "Yellow Shorts 调试日志")
-                putExtra(Intent.EXTRA_TEXT, "Yellow Shorts v4.1 调试日志/崩溃日志")
+                putExtra(Intent.EXTRA_TEXT, "Yellow Shorts v4.2 调试日志/崩溃日志")
                 addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)
             }
             context.startActivity(Intent.createChooser(intent, "导出调试日志"))
@@ -105,6 +107,21 @@ fun SettingsScreen(navController: NavController) {
                 title = "长按倍速",
                 subtitle = "长按时使用 ${longPressSpeed}x 速度播放",
                 onClick = { showSpeedDialog = true }
+            )
+
+            Divider(color = DarkSurfaceVariant, modifier = Modifier.padding(vertical = 4.dp))
+
+            SectionHeader("隐私")
+
+            ToggleSettingsItem(
+                icon = Icons.Default.VisibilityOff,
+                title = "隐私模式",
+                subtitle = "下次启动显示黑屏，连续向右滑动 5 次进入",
+                checked = privacyModeEnabled,
+                onCheckedChange = { enabled ->
+                    privacyModeEnabled = enabled
+                    privacyPrefs.edit().putBoolean("privacy_mode_enabled", enabled).apply()
+                }
             )
 
             Divider(color = DarkSurfaceVariant, modifier = Modifier.padding(vertical = 4.dp))
@@ -171,7 +188,7 @@ fun SettingsScreen(navController: NavController) {
             SettingsItem(
                 icon = Icons.Default.Info,
                 title = "版本",
-                subtitle = "4.1",
+                subtitle = "4.2",
                 onClick = {}
             )
 
@@ -258,6 +275,42 @@ private fun SettingsItem(
                 contentDescription = null,
                 tint = TextHint,
                 modifier = Modifier.size(20.dp)
+            )
+        }
+    }
+}
+
+@Composable
+private fun ToggleSettingsItem(
+    icon: androidx.compose.ui.graphics.vector.ImageVector,
+    title: String,
+    subtitle: String,
+    checked: Boolean,
+    onCheckedChange: (Boolean) -> Unit
+) {
+    Surface(
+        onClick = { onCheckedChange(!checked) },
+        color = DarkSurface,
+        shape = MaterialTheme.shapes.small
+    ) {
+        Row(
+            modifier = Modifier.fillMaxWidth().padding(16.dp),
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.spacedBy(16.dp)
+        ) {
+            Icon(icon, contentDescription = null, tint = Yellow500, modifier = Modifier.size(24.dp))
+            Column(modifier = Modifier.weight(1f)) {
+                Text(title, color = TextPrimary, fontSize = 15.sp)
+                Text(subtitle, color = TextSecondary, fontSize = 13.sp)
+            }
+            Checkbox(
+                checked = checked,
+                onCheckedChange = onCheckedChange,
+                colors = CheckboxDefaults.colors(
+                    checkedColor = Yellow500,
+                    checkmarkColor = Black,
+                    uncheckedColor = TextSecondary
+                )
             )
         }
     }
